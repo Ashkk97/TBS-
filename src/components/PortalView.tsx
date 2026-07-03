@@ -19,10 +19,116 @@ import {
   AlertTriangle,
   Lock,
   RotateCcw,
-  Download
+  Download,
+  Sparkles,
+  TrendingUp,
+  GraduationCap
 } from 'lucide-react';
 import { AppState, generateVoucherCode } from '../data';
 import { Package, Voucher, AdTrialClaim, SponsorAd } from '../types';
+import techausLogo from '../assets/images/techaus_logo_1783070233348.jpg';
+
+// Individual theme styling mapping for each package
+export const getPackageStyle = (pkgId: string) => {
+  switch (pkgId) {
+    case 'pkg-quick':
+      return {
+        bg: 'from-blue-600/10 to-indigo-600/5 hover:from-blue-600/15 hover:to-indigo-600/10 border-blue-500/20 hover:border-blue-400',
+        badge: 'text-blue-300 bg-blue-950/50 border-blue-800/40',
+        button: 'bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-955 border-blue-500/30 hover:border-blue-400',
+        accentText: 'text-blue-400',
+        glowingGlow: 'bg-blue-500/10',
+        tag: 'Quick Surf',
+        tagBg: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+        icon: Clock,
+        benefit: 'Best for checking email & quick social updates'
+      };
+    case 'pkg-daily':
+      return {
+        bg: 'from-emerald-600/10 to-teal-600/5 hover:from-emerald-600/15 hover:to-teal-600/10 border-emerald-500/20 hover:border-emerald-400',
+        badge: 'text-emerald-300 bg-emerald-950/50 border-emerald-800/40',
+        button: 'bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-955 border-emerald-500/30 hover:border-emerald-400',
+        accentText: 'text-emerald-400',
+        glowingGlow: 'bg-emerald-500/10',
+        tag: 'Budget 24H',
+        tagBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+        icon: Zap,
+        benefit: 'Unlimited 24-Hour continuous browsing'
+      };
+    case 'pkg-3day':
+      return {
+        bg: 'from-violet-600/10 to-purple-600/5 hover:from-violet-600/15 hover:to-purple-600/10 border-violet-500/20 hover:border-violet-400',
+        badge: 'text-violet-300 bg-violet-950/50 border-violet-800/40',
+        button: 'bg-violet-500/10 hover:bg-violet-500 text-violet-300 hover:text-slate-955 border-violet-500/30 hover:border-violet-400',
+        accentText: 'text-violet-400',
+        glowingGlow: 'bg-violet-500/10',
+        tag: 'Weekend Special',
+        tagBg: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+        icon: Wifi,
+        benefit: 'Great for weekend project getaways & studies'
+      };
+    case 'pkg-weekly':
+      return {
+        bg: 'from-amber-600/10 to-orange-600/5 hover:from-amber-600/15 hover:to-orange-600/10 border-amber-500/30 hover:border-amber-400',
+        badge: 'text-amber-300 bg-amber-950/50 border-amber-800/40',
+        button: 'bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-955 border-amber-500/30 hover:border-amber-400',
+        accentText: 'text-amber-400',
+        glowingGlow: 'bg-amber-500/10',
+        tag: 'Best Seller 🔥',
+        tagBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+        icon: Zap,
+        benefit: 'Excellent daily study/work balance plan'
+      };
+    case 'pkg-weeklyplus':
+      return {
+        bg: 'from-rose-600/10 to-pink-600/5 hover:from-rose-600/15 hover:to-pink-600/10 border-rose-500/20 hover:border-rose-400',
+        badge: 'text-rose-300 bg-rose-950/50 border-rose-800/40',
+        button: 'bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-slate-955 border-rose-500/30 hover:border-rose-400',
+        accentText: 'text-rose-400',
+        glowingGlow: 'bg-rose-500/10',
+        tag: 'Double Device',
+        tagBg: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+        icon: Smartphone,
+        benefit: 'Perfect for connecting Phone & Laptop concurrently'
+      };
+    case 'pkg-monthly':
+      return {
+        bg: 'from-indigo-600/10 to-cyan-600/5 hover:from-indigo-600/15 hover:to-cyan-600/10 border-indigo-500/20 hover:border-indigo-400',
+        badge: 'text-indigo-300 bg-indigo-950/50 border-indigo-800/40',
+        button: 'bg-indigo-500/10 hover:bg-indigo-500 text-indigo-300 hover:text-slate-955 border-indigo-500/30 hover:border-indigo-400',
+        accentText: 'text-indigo-400',
+        glowingGlow: 'bg-indigo-500/10',
+        tag: 'Symmetric Power',
+        tagBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+        icon: Zap,
+        benefit: 'Unlimited 10Mbps heavy downloading & streaming'
+      };
+    case 'pkg-family':
+      return {
+        bg: 'from-yellow-600/15 to-amber-600/10 hover:from-yellow-600/20 hover:to-amber-600/15 border-yellow-500/30 hover:border-yellow-400 shadow-md shadow-yellow-500/5',
+        badge: 'text-yellow-300 bg-yellow-950/50 border-yellow-800/40',
+        button: 'bg-yellow-500/10 hover:bg-yellow-500 text-yellow-300 hover:text-slate-955 border-yellow-500/30 hover:border-yellow-400',
+        accentText: 'text-yellow-400',
+        glowingGlow: 'bg-yellow-500/20',
+        tag: 'Elite Shared Deal 👑',
+        tagBg: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+        icon: Tv,
+        benefit: 'Connect up to 4 devices (TV, laptops, smartphones)'
+      };
+    default:
+      return {
+        bg: 'from-slate-600/10 to-slate-600/5 hover:from-slate-600/15 hover:to-slate-600/10 border-slate-500/20 hover:border-slate-400',
+        badge: 'text-slate-300 bg-slate-950/50 border-slate-800/40',
+        button: 'bg-slate-500/10 hover:bg-slate-500 text-slate-300 hover:text-slate-955 border-slate-500/30 hover:border-slate-400',
+        accentText: 'text-slate-400',
+        glowingGlow: 'bg-slate-500/10',
+        tag: 'Hotspot Pack',
+        tagBg: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+        icon: Wifi,
+        benefit: 'High-speed symmetric uncapped hotspot connectivity'
+      };
+  }
+};
 
 interface PortalViewProps {
   state: AppState;
@@ -73,6 +179,12 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   const [adCountdown, setAdCountdown] = useState(15);
   const [adFinished, setAdFinished] = useState(false);
   const [completedAdsCount, setCompletedAdsCount] = useState(0);
+
+  // Package display filter: 'all' | 'budget' | 'weekly-monthly' | 'multidevice'
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'budget' | 'weekly-monthly' | 'multidevice'>('all');
+  
+  // Dynamic Package Need advisor state
+  const [selectedAdvisorNeed, setSelectedAdvisorNeed] = useState<string | null>(null);
 
   // Ad modal countdown effect
   useEffect(() => {
@@ -194,16 +306,53 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       ? voucher.boundMACs 
       : [...voucher.boundMACs, state.clientMAC];
 
-    // Calculate times if activating for the first time
     let actTime = voucher.activationTime;
     let expTime = voucher.expiryTime;
     let newStatus = voucher.status;
+    let updatedDeferred = voucher.commissionDeferred;
 
     if (voucher.status === 'unused') {
       actTime = new Date().toISOString();
       const expDate = new Date(Date.now() + pkg.durationHours * 60 * 60 * 1000);
       expTime = expDate.toISOString();
       newStatus = 'active';
+
+      // Remit 10% commission to agent if this was a bulk-purchased voucher
+      if (voucher.agentId && voucher.commissionDeferred) {
+        const agentIndex = state.agents.findIndex(a => a.id === voucher.agentId);
+        if (agentIndex !== -1) {
+          const agent = state.agents[agentIndex];
+          const commissionPercent = agent.commissionPercent || 10;
+          const commissionAmount = Math.round(pkg.priceUGX * (commissionPercent / 100));
+          
+          state.agents[agentIndex].walletBalance += commissionAmount;
+          state.agents[agentIndex].totalCommissionUGX += commissionAmount;
+          
+          // Record transaction for the commission credit
+          state.transactions.push({
+            id: "txn-comm-" + Math.floor(Math.random() * 90000 + 10000),
+            phone: voucher.phone || "0700000000",
+            amountUGX: commissionAmount,
+            packageId: pkg.id,
+            voucherCode: code,
+            type: 'agent',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            agentId: agent.id,
+            paymentMethod: 'Wallet'
+          });
+
+          // Add audit log
+          state.addLog(
+            'System',
+            'Client Portal',
+            'Commission Remitted',
+            `Voucher ${code} successfully activated. Commission of ${commissionAmount.toLocaleString()} UGX remitted to Agent ${agent.name}'s wallet.`
+          );
+
+          updatedDeferred = false;
+        }
+      }
     }
 
     // Update voucher in state
@@ -212,7 +361,8 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       status: newStatus as any,
       activationTime: actTime,
       expiryTime: expTime,
-      boundMACs: updatedBound
+      boundMACs: updatedBound,
+      commissionDeferred: updatedDeferred
     };
 
     // Remove any existing session for this MAC
@@ -550,11 +700,49 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     let actTime = voucher.activationTime;
     let expTime = voucher.expiryTime;
     let newStatus = voucher.status;
+    let updatedDeferred = voucher.commissionDeferred;
 
     if (voucher.status === 'unused') {
       actTime = new Date().toISOString();
       expTime = new Date(Date.now() + pkg.durationHours * 60 * 60 * 1000).toISOString();
       newStatus = 'active';
+
+      // Remit 10% commission to agent if this was a bulk-purchased voucher
+      if (voucher.agentId && voucher.commissionDeferred) {
+        const agentIndex = state.agents.findIndex(a => a.id === voucher.agentId);
+        if (agentIndex !== -1) {
+          const agent = state.agents[agentIndex];
+          const commissionPercent = agent.commissionPercent || 10;
+          const commissionAmount = Math.round(pkg.priceUGX * (commissionPercent / 100));
+          
+          state.agents[agentIndex].walletBalance += commissionAmount;
+          state.agents[agentIndex].totalCommissionUGX += commissionAmount;
+          
+          // Record transaction for the commission credit
+          state.transactions.push({
+            id: "txn-comm-" + Math.floor(Math.random() * 90000 + 10000),
+            phone: voucher.phone || "0700000000",
+            amountUGX: commissionAmount,
+            packageId: pkg.id,
+            voucherCode: voucher.code,
+            type: 'agent',
+            status: 'success',
+            timestamp: new Date().toISOString(),
+            agentId: agent.id,
+            paymentMethod: 'Wallet'
+          });
+
+          // Add audit log
+          state.addLog(
+            'System',
+            'Client Portal',
+            'Commission Remitted',
+            `Voucher ${voucher.code} successfully activated for Smart TV. Commission of ${commissionAmount.toLocaleString()} UGX remitted to Agent ${agent.name}'s wallet.`
+          );
+
+          updatedDeferred = false;
+        }
+      }
     }
 
     state.vouchers[voucherIndex] = {
@@ -562,7 +750,8 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       status: newStatus as any,
       activationTime: actTime,
       expiryTime: expTime,
-      boundMACs: updatedBound
+      boundMACs: updatedBound,
+      commissionDeferred: updatedDeferred
     };
 
     // Auto connect TV session simulation
@@ -622,14 +811,19 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden">
+      {/* Subtle Background Logo Watermark */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.03] bg-no-repeat bg-center bg-contain" 
+        style={{ backgroundImage: `url(${techausLogo})` }}
+      />
       
       {/* 1. Header & Live Connection Bar */}
       <header className="sticky top-0 z-40 backdrop-blur-md bg-navy-800/90 border-b border-navy-700 shadow-md">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-teal-500 rounded-lg text-navy-800 shadow-lg shadow-teal-500/20">
-              <Wifi className="h-6 w-6 animate-pulse" id="portal-wifi-icon" />
+            <div className="h-10 w-10 bg-slate-900 border border-navy-700 rounded-lg overflow-hidden flex items-center justify-center p-0.5 shadow-lg">
+              <img src={techausLogo} alt="Techaus Logo" className="h-full w-full object-cover rounded" referrerPolicy="no-referrer" />
             </div>
             <div>
               <h1 className="text-xl font-bold font-display tracking-tight text-white flex items-center gap-1.5">
@@ -1123,65 +1317,222 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
         )}
 
         {/* 3. Package Pricing Table */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1.5">
-            <h2 className="text-xl font-bold text-white font-display flex items-center gap-2">
-              <Zap className="h-5 w-5 text-teal-400" />
-              Choose a High-Speed Package
-            </h2>
-            <p className="text-xs text-slate-400">All speeds are symmetric and hard-capped.</p>
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-white font-display flex items-center gap-2">
+                <Zap className="h-5 w-5 text-teal-400" />
+                Choose a High-Speed Package
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Symmetric, unlimited downloads with individual multi-tier color options.</p>
+            </div>
+
+            {/* Smart Category Filters */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-navy-800 shrink-0">
+              <button
+                onClick={() => {
+                  setSelectedFilter('all');
+                  setSelectedAdvisorNeed(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  selectedFilter === 'all' && !selectedAdvisorNeed
+                    ? 'bg-teal-500 text-navy-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All Packages
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedFilter('budget');
+                  setSelectedAdvisorNeed(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  selectedFilter === 'budget'
+                    ? 'bg-emerald-500 text-navy-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Budget (≤ 2,500 UGX)
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedFilter('weekly-monthly');
+                  setSelectedAdvisorNeed(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  selectedFilter === 'weekly-monthly'
+                    ? 'bg-indigo-500 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Weekly & Monthly
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedFilter('multidevice');
+                  setSelectedAdvisorNeed(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  selectedFilter === 'multidevice'
+                    ? 'bg-rose-500 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Multi-Device ({'>'}1 Dev)
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {state.packages.map((pkg) => (
-              <div 
-                key={pkg.id}
-                className="bg-navy-800 rounded-2xl border border-navy-700 hover:border-teal-500/50 p-5 flex flex-col justify-between shadow-lg transition duration-200 group relative"
-              >
-                {pkg.id === 'pkg-weekly' && (
-                  <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 text-[9px] bg-teal-400 text-navy-800 font-bold rounded-full border border-teal-300/30 uppercase tracking-wider font-sans shadow-lg">
-                    Best Seller
-                  </span>
-                )}
+          {/* Interactive Needs Advisor Bar */}
+          <div className="bg-slate-900/60 p-4 rounded-2xl border border-navy-800/80">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5">
+              💡 Smart Package Advisor — Select what you plan to do:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(state.smartPlans || []).map((needObj) => {
+                const isSelected = selectedAdvisorNeed === needObj.key;
                 
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-base font-bold text-white font-display group-hover:text-teal-300 transition-colors">
-                      {pkg.name}
-                    </h3>
-                    <span className="px-2 py-0.5 text-[10px] bg-slate-900 text-teal-400 font-mono rounded border border-navy-600">
-                      {pkg.speed}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-1 my-3">
-                    <span className="text-2xl font-black text-white">{pkg.priceUGX.toLocaleString()}</span>
-                    <span className="text-xs font-semibold text-slate-400">UGX</span>
-                    <span className="text-xs text-slate-500 ml-1">/ {pkg.durationHours >= 24 ? `${pkg.durationHours / 24} Day` : `${pkg.durationHours} Hours`}</span>
-                  </div>
+                // Determine icon
+                let NIcon = User;
+                if (needObj.key === 'browse') NIcon = Smartphone;
+                else if (needObj.key === 'study') NIcon = GraduationCap;
+                else if (needObj.key === 'video') NIcon = Tv;
 
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    {pkg.notes}
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-navy-700/60 mt-auto space-y-2.5">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Devices allowed:</span>
-                    <span className="font-bold text-white">{pkg.devices} {pkg.devices > 1 ? 'Devices' : 'Device'}</span>
-                  </div>
-
-                  <button 
-                    onClick={() => handleStartPurchase(pkg)}
-                    className="w-full py-2 bg-slate-900 hover:bg-teal-500 group-hover:bg-teal-500 text-slate-200 hover:text-navy-800 group-hover:text-navy-800 font-bold text-xs rounded-xl border border-navy-600 group-hover:border-teal-400 transition duration-150 flex items-center justify-center gap-1"
-                    id={`buy-pkg-${pkg.id}`}
+                return (
+                  <button
+                    key={needObj.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAdvisorNeed(isSelected ? null : needObj.key);
+                      // Auto-adjust categories to present the recommended package
+                      if (!isSelected) {
+                        if (needObj.key === 'browse') setSelectedFilter('budget');
+                        else if (needObj.key === 'household') setSelectedFilter('multidevice');
+                        else setSelectedFilter('weekly-monthly');
+                      } else {
+                        setSelectedFilter('all');
+                      }
+                    }}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition ${
+                      isSelected
+                        ? 'bg-teal-500/10 border-teal-400/80 shadow-md shadow-teal-500/5'
+                        : 'bg-slate-950/40 border-navy-800/60 hover:bg-slate-950/80 hover:border-navy-700'
+                    }`}
                   >
-                    Buy Online Now
-                    <ArrowRight className="h-3.5 w-3.5" />
+                    <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-teal-500/20 text-teal-400' : 'bg-navy-900 text-slate-400'}`}>
+                      <NIcon className="h-4 w-4" />
+                    </div>
+                    <div className="truncate">
+                      <p className={`text-xs font-black truncate ${isSelected ? 'text-teal-300' : 'text-slate-300'}`}>{needObj.label}</p>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{needObj.desc}</p>
+                    </div>
                   </button>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pricing Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {state.packages
+              .filter((pkg) => {
+                if (selectedFilter === 'budget') return pkg.priceUGX <= 2500;
+                if (selectedFilter === 'weekly-monthly') return pkg.durationHours >= 168;
+                if (selectedFilter === 'multidevice') return pkg.devices > 1;
+                return true;
+              })
+              .map((pkg) => {
+                const style = getPackageStyle(pkg.id);
+                const IconComponent = style.icon;
+                
+                const currentSmartPlan = (state.smartPlans || []).find(sp => sp.key === selectedAdvisorNeed);
+                const isRecommended = selectedAdvisorNeed && currentSmartPlan && pkg.id === currentSmartPlan.targetPkg;
+
+                return (
+                  <div 
+                    key={pkg.id}
+                    className={`bg-gradient-to-b ${style.bg} rounded-2xl border p-5 flex flex-col justify-between shadow-lg transition-all duration-300 group relative overflow-hidden ${
+                      isRecommended 
+                        ? 'ring-2 ring-teal-400/70 shadow-teal-500/10 scale-[1.02] z-10' 
+                        : 'opacity-90 hover:opacity-100'
+                    }`}
+                  >
+                    {/* Glowing background bubble */}
+                    <div className={`absolute -right-10 -top-10 w-32 h-32 ${style.glowingGlow} rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-300`} />
+                    
+                    {/* Custom Tag Badges */}
+                    <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                      {isRecommended && (
+                        <span className="px-2 py-0.5 text-[9px] bg-teal-500 text-navy-950 font-black rounded-full uppercase tracking-widest animate-bounce flex items-center gap-1">
+                          <Sparkles className="h-2.5 w-2.5" /> Best Match
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 text-[9px] ${style.tagBg} font-bold rounded-full border uppercase tracking-wider`}>
+                        {style.tag}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 pr-20">
+                        <div className={`p-1.5 rounded-lg bg-slate-950/50 ${style.accentText}`}>
+                          <IconComponent className="h-4 w-4" />
+                        </div>
+                        <h3 className="text-base font-extrabold text-white font-display transition-colors">
+                          {pkg.name}
+                        </h3>
+                      </div>
+                      
+                      <div className="flex items-baseline gap-1.5 my-3.5">
+                        <span className="text-3xl font-black text-white tracking-tight">{pkg.priceUGX.toLocaleString()}</span>
+                        <span className={`text-xs font-bold ${style.accentText}`}>UGX</span>
+                        <span className="text-xs text-slate-400 ml-1">/ {pkg.durationHours >= 24 ? `${pkg.durationHours / 24} Day` : `${pkg.durationHours} Hours`}</span>
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed mb-4 min-h-[36px]">
+                        {pkg.notes}
+                      </p>
+
+                      {/* Smart Metric helper */}
+                      <div className="bg-slate-950/40 p-2 rounded-lg border border-navy-800/40 text-[10px] text-slate-400 mb-4 flex items-center gap-1.5">
+                        <TrendingUp className={`h-3 w-3 shrink-0 ${style.accentText}`} />
+                        <span>{style.benefit}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-navy-700/60 mt-auto space-y-3">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Smartphone className="h-3.5 w-3.5 text-slate-500" />
+                          Concurrent devices:
+                        </span>
+                        <span className="font-bold text-white bg-slate-950/50 px-2 py-0.5 rounded border border-navy-700">
+                          {pkg.devices} {pkg.devices > 1 ? 'Devices' : 'Device'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Zap className="h-3.5 w-3.5 text-slate-500" />
+                          Download Speed:
+                        </span>
+                        <span className={`font-bold font-mono px-2 py-0.5 rounded border border-navy-700/80 ${style.accentText} bg-slate-950/50`}>
+                          {pkg.speed}
+                        </span>
+                      </div>
+
+                      <button 
+                        onClick={() => handleStartPurchase(pkg)}
+                        className={`w-full py-2.5 ${style.button} font-black text-xs rounded-xl border transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md`}
+                        id={`buy-pkg-${pkg.id}`}
+                      >
+                        Buy Online Now
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
 

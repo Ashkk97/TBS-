@@ -1,4 +1,4 @@
-import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog, AdTrialClaim, SponsorAd } from './types';
+import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog, AdTrialClaim, SponsorAd, SmartPlan } from './types';
 
 // Helper to generate a Uganda-styled phone number
 export const samplePhones = ["0772123456", "0788987654", "0701555444", "0752111222"];
@@ -296,6 +296,104 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     timestamp: formatOffsetDate(-26),
     agentId: "agent-1",
     paymentMethod: "Cash"
+  },
+  // June 2026 - Sarah Achen won this month
+  {
+    id: "txn-june-1",
+    phone: "0770111222",
+    amountUGX: 250000,
+    packageId: "pkg-family",
+    voucherCode: "JUNE-FAML-AAAA",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-06-12T14:20:00.000Z",
+    agentId: "agent-2",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-june-2",
+    phone: "0770111223",
+    amountUGX: 150000,
+    packageId: "pkg-monthly",
+    voucherCode: "JUNE-MONT-BBBB",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-06-18T09:15:00.000Z",
+    agentId: "agent-2",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-june-3",
+    phone: "0770111224",
+    amountUGX: 200000,
+    packageId: "pkg-monthly",
+    voucherCode: "JUNE-MONT-CCCC",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-06-22T11:45:00.000Z",
+    agentId: "agent-1",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-june-4",
+    phone: "0770111225",
+    amountUGX: 150000,
+    packageId: "pkg-monthly",
+    voucherCode: "JUNE-MONT-DDDD",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-06-25T16:10:00.000Z",
+    agentId: "agent-3",
+    paymentMethod: "Cash"
+  },
+  // May 2026 - John Masaba won this month
+  {
+    id: "txn-may-1",
+    phone: "0770222333",
+    amountUGX: 500000,
+    packageId: "pkg-family",
+    voucherCode: "MAY-FAML-AAAA",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-05-10T10:05:00.000Z",
+    agentId: "agent-3",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-may-2",
+    phone: "0770222334",
+    amountUGX: 300000,
+    packageId: "pkg-monthly",
+    voucherCode: "MAY-MONT-BBBB",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-05-15T15:30:00.000Z",
+    agentId: "agent-3",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-may-3",
+    phone: "0770222335",
+    amountUGX: 300000,
+    packageId: "pkg-monthly",
+    voucherCode: "MAY-MONT-CCCC",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-05-20T12:00:00.000Z",
+    agentId: "agent-2",
+    paymentMethod: "Cash"
+  },
+  {
+    id: "txn-may-4",
+    phone: "0770222336",
+    amountUGX: 100000,
+    packageId: "pkg-weekly",
+    voucherCode: "MAY-WEEK-DDDD",
+    type: "agent",
+    status: "success",
+    timestamp: "2026-05-24T18:50:00.000Z",
+    agentId: "agent-1",
+    paymentMethod: "Cash"
   }
 ];
 
@@ -411,6 +509,14 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
   }
 ];
 
+export const INITIAL_SMART_PLANS: SmartPlan[] = [
+  { key: 'browse', label: 'Social & Chatting', desc: 'Casual social media', targetPkg: 'pkg-daily' },
+  { key: 'study', label: 'Study & Work', desc: 'Symmetric Zoom & Docs', targetPkg: 'pkg-weekly' },
+  { key: 'video', label: 'HD Video Streaming', desc: 'Netflix & YouTube', targetPkg: 'pkg-monthly' },
+  { key: 'household', label: 'Entire Family', desc: 'Multiple concurrent devices', targetPkg: 'pkg-family' }
+];
+
+
 
 // Local Storage Sync Engine
 export function getStoredData<T>(key: string, defaultValue: T): T {
@@ -446,6 +552,7 @@ export class AppState {
   logs: AuditLog[];
   adTrialClaims: AdTrialClaim[];
   sponsorAds: SponsorAd[];
+  smartPlans: SmartPlan[];
   
   // Current client device info
   clientMAC: string;
@@ -462,11 +569,74 @@ export class AppState {
     this.logs = getStoredData('logs', INITIAL_LOGS);
     this.adTrialClaims = getStoredData('ad_trial_claims', INITIAL_AD_TRIAL_CLAIMS);
     this.sponsorAds = getStoredData('sponsor_ads', INITIAL_SPONSOR_ADS);
+    this.smartPlans = getStoredData('smart_plans', INITIAL_SMART_PLANS);
 
     // Get or initialize device-specific simulation
     this.clientMAC = getStoredData('client_mac', this.randomMAC());
     this.clientFingerprint = getStoredData('client_fingerprint', "fp_" + Math.random().toString(36).substring(2, 10));
     this.clientFreeTrialClaimed = getStoredData('client_free_trial_claimed', false);
+
+    // Run monthly commission automation
+    this.recalculateMonthlyCommissions();
+  }
+
+  recalculateMonthlyCommissions() {
+    const currentMonthStr = new Date().toISOString().substring(0, 7); // e.g., "2026-07"
+    
+    // Calculate sales for each agent in the current month
+    const salesMap: Record<string, number> = {};
+    this.agents.forEach(a => {
+      salesMap[a.id] = 0;
+    });
+    
+    this.transactions.forEach(txn => {
+      if (txn.agentId && txn.status === 'success' && txn.timestamp.startsWith(currentMonthStr)) {
+        salesMap[txn.agentId] = (salesMap[txn.agentId] || 0) + txn.amountUGX;
+      }
+    });
+
+    // Find the top seller with non-zero sales
+    let topAgentId: string | null = null;
+    let maxSales = 0;
+    
+    Object.entries(salesMap).forEach(([id, sales]) => {
+      if (sales > maxSales) {
+        maxSales = sales;
+        topAgentId = id;
+      }
+    });
+
+    // Check if top agent meets the compulsory threshold of 250,000 UGX
+    const meetsThreshold = maxSales >= 250000;
+    const winningAgentId = meetsThreshold ? topAgentId : null;
+
+    // Apply commissions: Top agent gets 25% (if threshold met), others get their base.
+    this.agents.forEach(agent => {
+      let basePercent = 10;
+      if (agent.id === 'agent-1') basePercent = 10;
+      if (agent.id === 'agent-2') basePercent = 10;
+      if (agent.id === 'agent-3') basePercent = 12; // John Masaba base
+      
+      const newCommission = (winningAgentId && agent.id === winningAgentId) ? 25 : basePercent;
+      
+      if (agent.commissionPercent !== newCommission) {
+        agent.commissionPercent = newCommission;
+        
+        // Push a log dynamically to audit
+        const newLog: AuditLog = {
+          id: "log-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+          timestamp: new Date().toISOString(),
+          actor: "System Scheduler",
+          role: "System",
+          action: "Monthly Commission Adjusted",
+          details: meetsThreshold
+            ? `Automated Commission Boost: ${agent.name} is now at ${newCommission}% commission based on top monthly sales volume (${salesMap[agent.id]?.toLocaleString() || 0} UGX, meeting the 250,000 UGX threshold).`
+            : `Automated Commission Reset: ${agent.name} reset to base commission ${newCommission}% as monthly sales do not meet the 250,000 UGX threshold.`,
+          ip: "127.0.0.1"
+        };
+        this.logs = [newLog, ...this.logs].slice(0, 200);
+      }
+    });
   }
 
   // Load latest state from server backend
@@ -484,6 +654,7 @@ export class AppState {
         if (data.logs) this.logs = data.logs;
         if (data.adTrialClaims) this.adTrialClaims = data.adTrialClaims;
         if (data.sponsorAds) this.sponsorAds = data.sponsorAds;
+        if (data.smartPlans) this.smartPlans = data.smartPlans;
         
         // Save to local storage cache
         setStoredData('packages', this.packages);
@@ -495,6 +666,7 @@ export class AppState {
         setStoredData('logs', this.logs);
         setStoredData('ad_trial_claims', this.adTrialClaims);
         setStoredData('sponsor_ads', this.sponsorAds);
+        setStoredData('smart_plans', this.smartPlans);
       }
     } catch (e) {
       console.warn("Failed to load state from server backend, using local storage fallback:", e);
@@ -515,6 +687,9 @@ export class AppState {
   }
 
   save() {
+    // Automatically recalculate monthly commission increases silently before saving
+    this.recalculateMonthlyCommissions();
+
     // 1. Save to local storage as fallback
     setStoredData('packages', this.packages);
     setStoredData('sites', this.sites);
@@ -525,6 +700,7 @@ export class AppState {
     setStoredData('logs', this.logs);
     setStoredData('ad_trial_claims', this.adTrialClaims);
     setStoredData('sponsor_ads', this.sponsorAds);
+    setStoredData('smart_plans', this.smartPlans);
     setStoredData('client_mac', this.clientMAC);
     setStoredData('client_fingerprint', this.clientFingerprint);
     setStoredData('client_free_trial_claimed', this.clientFreeTrialClaimed);

@@ -20,6 +20,7 @@ export interface Voucher {
   phone: string | null;
   agentId: string | null;
   createdTime: string;
+  commissionDeferred?: boolean;
 }
 
 export interface Customer {
@@ -45,7 +46,7 @@ export interface Transaction {
   status: 'pending' | 'success' | 'failed';
   timestamp: string;
   agentId: string | null;
-  paymentMethod: 'MTN' | 'Airtel' | 'Pesapal' | 'Cash';
+  paymentMethod: 'MTN' | 'Airtel' | 'Pesapal' | 'Cash' | 'Wallet';
 }
 
 export interface Agent {
@@ -56,6 +57,7 @@ export interface Agent {
   commissionPercent: number;
   totalSalesUGX: number;
   totalCommissionUGX: number;
+  lastWithdrawalTime?: string;
 }
 
 export interface ActiveSession {
@@ -109,3 +111,11 @@ export interface SponsorAd {
   clicks: number;
   active: boolean;
 }
+
+export interface SmartPlan {
+  key: string;
+  label: string;
+  desc: string;
+  targetPkg: string;
+}
+

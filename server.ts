@@ -11,7 +11,8 @@ import {
   INITIAL_TRANSACTIONS, 
   INITIAL_LOGS,
   INITIAL_AD_TRIAL_CLAIMS,
-  INITIAL_SPONSOR_ADS
+  INITIAL_SPONSOR_ADS,
+  INITIAL_SMART_PLANS
 } from "./src/data";
 
 const app = express();
@@ -42,7 +43,8 @@ function getDbState() {
     transactions: INITIAL_TRANSACTIONS,
     logs: INITIAL_LOGS,
     adTrialClaims: INITIAL_AD_TRIAL_CLAIMS,
-    sponsorAds: INITIAL_SPONSOR_ADS
+    sponsorAds: INITIAL_SPONSOR_ADS,
+    smartPlans: INITIAL_SMART_PLANS
   };
   saveDbState(initialState);
   return initialState;
@@ -89,7 +91,8 @@ app.post("/api/state/reset", (req, res) => {
     transactions: INITIAL_TRANSACTIONS,
     logs: INITIAL_LOGS,
     adTrialClaims: INITIAL_AD_TRIAL_CLAIMS,
-    sponsorAds: INITIAL_SPONSOR_ADS
+    sponsorAds: INITIAL_SPONSOR_ADS,
+    smartPlans: INITIAL_SMART_PLANS
   };
   saveDbState(initialState);
   res.json(initialState);
