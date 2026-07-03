@@ -89,3 +89,9 @@ export interface AuditLog {
   details: string;
   ip: string;
 }
+
+export interface AdTrialClaim {
+  id: string;
+  mac: string;
+  timestamp: string;
+}

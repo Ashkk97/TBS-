@@ -1,4 +1,4 @@
-import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog } from './types';
+import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog, AdTrialClaim } from './types';
 
 // Helper to generate a Uganda-styled phone number
 export const samplePhones = ["0772123456", "0788987654", "0701555444", "0752111222"];
@@ -324,7 +324,7 @@ export const INITIAL_LOGS: AuditLog[] = [
     actor: "Super Admin",
     role: "Super Admin",
     action: "System Settings Change",
-    details: "Updated Free Trial duration default setting to 35 minutes.",
+    details: "Updated Free Trial duration default setting to 20 minutes.",
     ip: "102.140.220.10"
   },
   {
@@ -338,20 +338,43 @@ export const INITIAL_LOGS: AuditLog[] = [
   }
 ];
 
+export const INITIAL_AD_TRIAL_CLAIMS: AdTrialClaim[] = [
+  {
+    id: "claim-1",
+    mac: "00:1A:2B:3C:4D:5E",
+    timestamp: formatOffsetDate(-10) // 10 days ago (within 15 days window)
+  },
+  {
+    id: "claim-2",
+    mac: "00:1A:2B:3C:4D:5E",
+    timestamp: formatOffsetDate(-4) // 4 days ago (within 15 days window)
+  },
+  {
+    id: "claim-3",
+    mac: "54:E4:3A:90:BC:11",
+    timestamp: formatOffsetDate(-20) // 20 days ago (outside 15 days)
+  }
+];
+
+
 // Local Storage Sync Engine
 export function getStoredData<T>(key: string, defaultValue: T): T {
   try {
-    const item = localStorage.getItem(`tbs_${key}`);
-    return item ? JSON.parse(item) : defaultValue;
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const item = localStorage.getItem(`tbs_${key}`);
+      return item ? JSON.parse(item) : defaultValue;
+    }
   } catch (e) {
     console.error("Local storage read error for key: ", key, e);
-    return defaultValue;
   }
+  return defaultValue;
 }
 
 export function setStoredData<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(`tbs_${key}`, JSON.stringify(value));
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem(`tbs_${key}`, JSON.stringify(value));
+    }
   } catch (e) {
     console.error("Local storage write error for key: ", key, e);
   }
@@ -366,6 +389,7 @@ export class AppState {
   sessions: ActiveSession[];
   transactions: Transaction[];
   logs: AuditLog[];
+  adTrialClaims: AdTrialClaim[];
   
   // Current client device info
   clientMAC: string;
@@ -380,11 +404,44 @@ export class AppState {
     this.sessions = getStoredData('sessions', INITIAL_SESSIONS);
     this.transactions = getStoredData('transactions', INITIAL_TRANSACTIONS);
     this.logs = getStoredData('logs', INITIAL_LOGS);
+    this.adTrialClaims = getStoredData('ad_trial_claims', INITIAL_AD_TRIAL_CLAIMS);
 
     // Get or initialize device-specific simulation
     this.clientMAC = getStoredData('client_mac', this.randomMAC());
     this.clientFingerprint = getStoredData('client_fingerprint', "fp_" + Math.random().toString(36).substring(2, 10));
     this.clientFreeTrialClaimed = getStoredData('client_free_trial_claimed', false);
+  }
+
+  // Load latest state from server backend
+  async init(onLoaded?: () => void) {
+    try {
+      const response = await fetch('/api/state');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.packages) this.packages = data.packages;
+        if (data.sites) this.sites = data.sites;
+        if (data.agents) this.agents = data.agents;
+        if (data.vouchers) this.vouchers = data.vouchers;
+        if (data.sessions) this.sessions = data.sessions;
+        if (data.transactions) this.transactions = data.transactions;
+        if (data.logs) this.logs = data.logs;
+        if (data.adTrialClaims) this.adTrialClaims = data.adTrialClaims;
+        
+        // Save to local storage cache
+        setStoredData('packages', this.packages);
+        setStoredData('sites', this.sites);
+        setStoredData('agents', this.agents);
+        setStoredData('vouchers', this.vouchers);
+        setStoredData('sessions', this.sessions);
+        setStoredData('transactions', this.transactions);
+        setStoredData('logs', this.logs);
+        setStoredData('ad_trial_claims', this.adTrialClaims);
+      }
+    } catch (e) {
+      console.warn("Failed to load state from server backend, using local storage fallback:", e);
+    } finally {
+      if (onLoaded) onLoaded();
+    }
   }
 
   private randomMAC(): string {
@@ -399,6 +456,7 @@ export class AppState {
   }
 
   save() {
+    // 1. Save to local storage as fallback
     setStoredData('packages', this.packages);
     setStoredData('sites', this.sites);
     setStoredData('agents', this.agents);
@@ -406,12 +464,31 @@ export class AppState {
     setStoredData('sessions', this.sessions);
     setStoredData('transactions', this.transactions);
     setStoredData('logs', this.logs);
+    setStoredData('ad_trial_claims', this.adTrialClaims);
     setStoredData('client_mac', this.clientMAC);
     setStoredData('client_fingerprint', this.clientFingerprint);
     setStoredData('client_free_trial_claimed', this.clientFreeTrialClaimed);
+
+    // 2. Sync asynchronously to the server backend
+    fetch('/api/state', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        packages: this.packages,
+        sites: this.sites,
+        agents: this.agents,
+        vouchers: this.vouchers,
+        sessions: this.sessions,
+        transactions: this.transactions,
+        logs: this.logs,
+        adTrialClaims: this.adTrialClaims
+      })
+    }).catch(e => console.error("Failed to sync state to server backend:", e));
   }
 
-  reset() {
+  async reset() {
     localStorage.removeItem('tbs_packages');
     localStorage.removeItem('tbs_sites');
     localStorage.removeItem('tbs_agents');
@@ -419,17 +496,38 @@ export class AppState {
     localStorage.removeItem('tbs_sessions');
     localStorage.removeItem('tbs_transactions');
     localStorage.removeItem('tbs_logs');
+    localStorage.removeItem('tbs_ad_trial_claims');
     localStorage.removeItem('tbs_client_mac');
     localStorage.removeItem('tbs_client_fingerprint');
     localStorage.removeItem('tbs_client_free_trial_claimed');
     
-    this.packages = INITIAL_PACKAGES;
-    this.sites = INITIAL_SITES;
-    this.agents = INITIAL_AGENTS;
-    this.vouchers = INITIAL_VOUCHERS;
-    this.sessions = INITIAL_SESSIONS;
-    this.transactions = INITIAL_TRANSACTIONS;
-    this.logs = INITIAL_LOGS;
+    try {
+      const response = await fetch('/api/state/reset', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json();
+        this.packages = data.packages;
+        this.sites = data.sites;
+        this.agents = data.agents;
+        this.vouchers = data.vouchers;
+        this.sessions = data.sessions;
+        this.transactions = data.transactions;
+        this.logs = data.logs;
+        this.adTrialClaims = data.adTrialClaims || [];
+      } else {
+        throw new Error("Reset response not OK");
+      }
+    } catch (e) {
+      console.warn("Server reset failed, falling back to local reset:", e);
+      this.packages = INITIAL_PACKAGES;
+      this.sites = INITIAL_SITES;
+      this.agents = INITIAL_AGENTS;
+      this.vouchers = INITIAL_VOUCHERS;
+      this.sessions = INITIAL_SESSIONS;
+      this.transactions = INITIAL_TRANSACTIONS;
+      this.logs = INITIAL_LOGS;
+      this.adTrialClaims = INITIAL_AD_TRIAL_CLAIMS;
+    }
+    
     this.clientMAC = this.randomMAC();
     this.clientFingerprint = "fp_" + Math.random().toString(36).substring(2, 10);
     this.clientFreeTrialClaimed = false;

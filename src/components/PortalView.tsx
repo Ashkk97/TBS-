@@ -18,10 +18,55 @@ import {
   Activity,
   AlertTriangle,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Download
 } from 'lucide-react';
 import { AppState, generateVoucherCode } from '../data';
-import { Package, Voucher } from '../types';
+import { Package, Voucher, AdTrialClaim } from '../types';
+
+interface SponsorAd {
+  id: string;
+  brand: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  ctaText: string;
+  tagline: string;
+  themeColor: string;
+}
+
+const SPONSOR_ADS: SponsorAd[] = [
+  {
+    id: "ad-mtn",
+    brand: "MTN Uganda",
+    title: "MoMoPay - Fast, Secure, and Cashless Payments",
+    description: "Pay for your Techaus internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
+    imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Explore MTN MoMo",
+    tagline: "Everywhere You Go",
+    themeColor: "from-yellow-400 to-amber-500"
+  },
+  {
+    id: "ad-airtel",
+    brand: "Airtel Uganda",
+    title: "Airtel Money Super Saver",
+    description: "Get 5% cash-back on all data bundle purchases using Airtel Money. Enjoy reliable 4G LTE internet speed across all cities in Uganda.",
+    imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Get Airtel Bonus",
+    tagline: "The Smartphone Network",
+    themeColor: "from-red-500 to-rose-600"
+  },
+  {
+    id: "ad-techaus",
+    brand: "Techaus Fiber Pro",
+    title: "Upgrade to Ultra-Fast Home Fiber",
+    description: "Bring the ultimate high-speed fiber internet experience to your household starting at only 85,000 UGX/month. Unlimited downloads, multiple screens, lag-free gaming!",
+    imageUrl: "https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Check Fiber Coverage",
+    tagline: "Your Tech Connection",
+    themeColor: "from-teal-500 to-cyan-600"
+  }
+];
 
 interface PortalViewProps {
   state: AppState;
@@ -65,6 +110,48 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   // Free Trial Timer Simulation
   const [trialTimeRemaining, setTrialTimeRemaining] = useState<number | null>(null);
   const [trialEndedAlert, setTrialEndedAlert] = useState(false);
+
+  // Advertising Portal Simulation
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [activeAd, setActiveAd] = useState<SponsorAd | null>(null);
+  const [adCountdown, setAdCountdown] = useState(15);
+  const [adFinished, setAdFinished] = useState(false);
+  const [completedAdsCount, setCompletedAdsCount] = useState(0);
+
+  // Ad modal countdown effect
+  useEffect(() => {
+    if (!showAdModal || adCountdown <= 0) {
+      if (showAdModal && adCountdown === 0) {
+        setAdFinished(true);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAdCountdown(prev => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [showAdModal, adCountdown]);
+
+  // Get ad trial claims for the current device MAC within the last 30 days
+  const getClaimsInLast30Days = () => {
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return (state.adTrialClaims || []).filter(c => 
+      c.mac === state.clientMAC && new Date(c.timestamp).getTime() >= thirtyDaysAgo
+    );
+  };
+
+  // Get remaining days before a new ad slot becomes available
+  const getAdResetDaysRemaining = () => {
+    const claims = getClaimsInLast30Days();
+    if (claims.length < 2) return 0;
+    const timestamps = claims.map(c => new Date(c.timestamp).getTime());
+    const oldest = Math.min(...timestamps);
+    const thirtyDaysFromOldest = oldest + 30 * 24 * 60 * 60 * 1000;
+    const msRemaining = thirtyDaysFromOldest - Date.now();
+    return Math.max(1, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+  };
 
   // Effect to sync and find active session for current MAC
   useEffect(() => {
@@ -211,38 +298,93 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     setActiveSession(null);
   };
 
-  // 3. Claim Free Trial (35 minutes)
+  // 3. Claim Free Trial (20 minutes) via Ad-supported video
   const handleClaimFreeTrial = () => {
-    if (state.clientFreeTrialClaimed) {
-      setErrorMessage("You have already claimed your one-time free trial on this device.");
+    // Check rolling 30 days limit
+    const claims = getClaimsInLast30Days();
+    if (claims.length >= 2) {
+      setErrorMessage("Ad trial limit reached: You can only claim up to 2 ad-supported free trials every 30 days per device. (Current claims: 2/2 in last 30 days)");
       return;
     }
+
+    // Start with 0 completed ads
+    setCompletedAdsCount(0);
+
+    // Pick random sponsor ad
+    const randomAd = SPONSOR_ADS[Math.floor(Math.random() * SPONSOR_ADS.length)];
+    setActiveAd(randomAd);
+    setAdCountdown(15);
+    setAdFinished(false);
+    setShowAdModal(true);
+    setErrorMessage(null);
+  };
+
+  const handleNextAd = () => {
+    if (!adFinished || !activeAd) return;
+    
+    const nextCompleted = completedAdsCount + 1;
+    setCompletedAdsCount(nextCompleted);
+
+    // Pick a different ad to avoid immediate repetition
+    const otherAds = SPONSOR_ADS.filter(ad => ad.id !== activeAd.id);
+    const chosenAd = otherAds.length > 0 
+      ? otherAds[Math.floor(Math.random() * otherAds.length)] 
+      : SPONSOR_ADS[Math.floor(Math.random() * SPONSOR_ADS.length)];
+
+    setActiveAd(chosenAd);
+    setAdCountdown(15);
+    setAdFinished(false);
+  };
+
+  const handleFinishAdAndClaim = () => {
+    if (!adFinished || !activeAd || completedAdsCount < 2) return;
 
     // Create temp free trial voucher
     const trialCode = "FREE-TRIAL-TEMP";
     
-    // Create active session for 35 minutes
+    // Create active session for 20 minutes
     const newSession = {
       id: "sess-trial-" + Date.now(),
       mac: state.clientMAC,
       voucherCode: trialCode,
       speed: "3 Mbps",
       startedAt: new Date().toISOString(),
-      durationMinutes: 35,
+      durationMinutes: 20,
       dataUsedMB: 0,
       ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
     };
 
+    // Filter out previous session for this device
     state.sessions = state.sessions.filter(s => s.mac !== state.clientMAC);
     state.sessions.push(newSession);
+    
+    // Set general claimed flag
     state.clientFreeTrialClaimed = true;
 
-    state.addLog('System', 'Client Portal', 'Free Trial Claimed', `Device ${state.clientMAC} started 35 min free trial.`);
-    setSuccessMessage("Enjoy your 35 minutes of free trial internet!");
+    // Record the ad trial claim in our array
+    const newClaim = {
+      id: "claim-" + Date.now(),
+      mac: state.clientMAC,
+      timestamp: new Date().toISOString()
+    };
+    if (!state.adTrialClaims) {
+      state.adTrialClaims = [];
+    }
+    state.adTrialClaims.push(newClaim);
+
+    // Add audit log
+    state.addLog('System', 'Client Portal', 'Ad Free Trial Claimed', `Device ${state.clientMAC} watched 3 sponsor ads (last sponsor: ${activeAd.brand}) and started 20 min free trial.`);
+    
+    // Display success
+    setSuccessMessage(`Enjoy your 20 minutes of free trial internet sponsored by our brand partners including ${activeAd.brand}!`);
     setErrorMessage(null);
 
+    // Save and update
     state.save();
     onStateUpdate();
+
+    // Close modal
+    setShowAdModal(false);
   };
 
   // 4. Buy Package (Simulated Mobile Money Flow)
@@ -515,6 +657,15 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
           </div>
 
           <div className="flex items-center gap-2">
+            <a 
+              href="/techaus-connect-wisp.zip"
+              download="techaus-connect-wisp.zip"
+              className="px-3 py-1.5 bg-teal-500/10 hover:bg-teal-500/25 text-xs text-teal-400 font-bold rounded-md border border-teal-500/30 transition flex items-center gap-1.5"
+              id="source-code-download-btn"
+            >
+              <Download className="h-3.5 w-3.5 animate-bounce" />
+              <span>Download Source ZIP</span>
+            </a>
             <button 
               onClick={onGoToAdmin}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium rounded-md border border-slate-700 transition flex items-center gap-1"
@@ -586,6 +737,159 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               >
                 Buy A Package
               </button>
+            </motion.div>
+          )}
+
+          {showAdModal && activeAd && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className="w-full max-w-lg bg-slate-900 border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl relative"
+              >
+                {/* Header with Close warning */}
+                <div className="absolute top-4 right-4 z-10">
+                  <button 
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to exit? You will lose progress and won't claim your 20 minutes of free internet.")) {
+                        setShowAdModal(false);
+                      }
+                    }}
+                    className="p-1.5 rounded-full bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-950 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Video/Image container simulating the advertisement player */}
+                <div className="relative aspect-video w-full bg-slate-950 overflow-hidden group">
+                  <img 
+                    src={activeAd.imageUrl} 
+                    alt={activeAd.title}
+                    className="w-full h-full object-cover select-none pointer-events-none transition duration-500 scale-102 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                  
+                  {/* Countdown overlay */}
+                  <div className="absolute top-4 left-4 py-1.5 px-3 bg-slate-950/80 rounded-full border border-slate-700/50 backdrop-blur-sm text-xs font-mono font-bold text-white flex items-center gap-2">
+                    {adFinished ? (
+                      <span className="text-teal-400 flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Ad {completedAdsCount + 1}/3 Completed
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
+                        Ad {completedAdsCount + 1}/3: {adCountdown}s remaining
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Brand Tag */}
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-yellow-400 text-slate-950 rounded-md tracking-wider">
+                      SPONSORED BY {activeAd.brand.toUpperCase()}
+                    </span>
+                    <h4 className="text-lg font-bold text-white font-display mt-1 drop-shadow">
+                      {activeAd.title}
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-1.5 w-full bg-slate-950">
+                  <motion.div 
+                    initial={{ width: "0%" }}
+                    animate={{ width: adFinished ? "100%" : `${((15 - adCountdown) / 15) * 100}%` }}
+                    transition={{ duration: 1, ease: "linear" }}
+                    className="h-full bg-gradient-to-r from-teal-500 to-cyan-500"
+                  />
+                </div>
+
+                {/* Ad Copy & Brand CTA */}
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between gap-3 bg-slate-950/40 p-3 rounded-xl border border-navy-800">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center font-bold text-teal-400 text-sm">
+                        {activeAd.brand.charAt(0)}
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-white text-sm">{activeAd.brand}</h5>
+                        <p className="text-[10px] text-slate-400 font-medium font-mono">{activeAd.tagline}</p>
+                      </div>
+                    </div>
+                    {/* Ads completed progress dots */}
+                    <div className="flex items-center gap-1 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      <span className="text-[9px] text-slate-400 font-mono font-bold mr-1">Ads:</span>
+                      {[1, 2, 3].map((step) => {
+                        const isCompleted = completedAdsCount >= step;
+                        const isCurrent = completedAdsCount + 1 === step;
+                        return (
+                          <div 
+                            key={step} 
+                            className={`h-1.5 w-3 rounded-full transition-colors duration-300 ${
+                              isCompleted 
+                                ? "bg-teal-400" 
+                                : isCurrent 
+                                  ? "bg-yellow-400 animate-pulse" 
+                                  : "bg-slate-700"
+                            }`} 
+                            title={`Ad ${step}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/30 p-3 rounded-xl border border-navy-800">
+                    {activeAd.description}
+                  </p>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button 
+                      onClick={() => {
+                        alert(`Simulating ad click-through to sponsor website! This triggers conversion credit for ${activeAd.brand}.`);
+                      }}
+                      className="flex-1 text-center py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
+                    >
+                      {activeAd.ctaText}
+                    </button>
+
+                    {adFinished ? (
+                      completedAdsCount < 2 ? (
+                        <button
+                          onClick={handleNextAd}
+                          className="flex-1 py-2.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-yellow-500/20 flex items-center justify-center gap-1.5"
+                        >
+                          Next Sponsor Ad (Ad {completedAdsCount + 2} of 3)
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleFinishAdAndClaim}
+                          className="flex-1 py-2.5 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-1.5"
+                        >
+                          Claim 20 Min Internet
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        disabled
+                        className="flex-1 py-2.5 bg-slate-800 text-slate-500 cursor-not-allowed font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+                      >
+                        Wait {adCountdown}s to continue
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -728,30 +1032,51 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               <div className="bg-gradient-to-br from-slate-900 to-navy-900 rounded-2xl border border-navy-700 p-5 shadow-xl relative overflow-hidden flex-1 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-teal-300 uppercase tracking-wider font-display">New to Techaus?</h3>
-                    <span className="px-2 py-0.5 text-[9px] bg-teal-400 text-slate-950 rounded-full font-extrabold uppercase">Free</span>
+                    <h3 className="text-sm font-bold text-teal-300 uppercase tracking-wider font-display">Sponsor Ads</h3>
+                    <span className="px-2 py-0.5 text-[9px] bg-teal-400 text-slate-950 rounded-full font-extrabold uppercase">Trial</span>
                   </div>
-                  <h4 className="text-base font-bold text-white mb-1.5">Claim 35 Min Free Trial</h4>
+                  <h4 className="text-base font-bold text-white mb-1.5">Claim 20 Min Free Trial</h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Test our network speed. Available once per device (strictly enforced by MAC + fingerprint).
+                    Watch 3 sponsor advertisements (15 seconds each) consecutively to unlock instant high-speed access. Max 2 claims every 30 days.
                   </p>
                 </div>
 
                 <div className="mt-4">
-                  {state.clientFreeTrialClaimed ? (
-                    <div className="py-2.5 px-3 bg-slate-950/80 rounded-xl border border-slate-800 text-center text-xs text-slate-500 font-medium">
-                      Already claimed on this device
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={handleClaimFreeTrial}
-                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-teal-400 font-bold rounded-xl border border-teal-500/30 hover:border-teal-400 transition text-xs flex items-center justify-center gap-1"
-                      id="claim-free-trial-btn"
-                    >
-                      Start Free Trial
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  {(() => {
+                    const claimsThisPeriod = getClaimsInLast30Days();
+                    const claimsCount = claimsThisPeriod.length;
+                    const isLimitReached = claimsCount >= 2;
+
+                    if (isLimitReached) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="py-2.5 px-3 bg-red-950/40 rounded-xl border border-red-900/50 text-center text-xs text-red-400 font-medium">
+                            Limit reached: 2 claims used this 30 days.
+                          </div>
+                          <div className="text-[10px] text-slate-500 text-center font-mono font-bold">
+                            Next claim unlocks in ~{getAdResetDaysRemaining()} days
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>30-day claim usage:</span>
+                          <span className="font-bold text-teal-400 font-mono bg-slate-950 px-2 py-0.5 rounded-md">{claimsCount} / 2</span>
+                        </div>
+                        <button 
+                          onClick={handleClaimFreeTrial}
+                          className="w-full py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-extrabold rounded-xl transition text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-teal-500/15"
+                          id="claim-free-trial-btn"
+                        >
+                          Watch Sponsor Ads (3 × 15s)
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

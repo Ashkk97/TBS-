@@ -394,14 +394,26 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
             ))}
           </div>
 
-          <button 
-            onClick={onGoToPortal}
-            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5"
-            id="go-to-portal-btn"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Go to Captive Portal
-          </button>
+          <div className="flex items-center gap-2">
+            <a 
+              href="/techaus-connect-wisp.zip"
+              download="techaus-connect-wisp.zip"
+              className="px-3.5 py-1.5 bg-teal-500/10 hover:bg-teal-500/25 text-xs text-teal-400 font-bold rounded-lg border border-teal-500/30 transition flex items-center gap-1.5"
+              id="dashboard-source-code-download-btn"
+            >
+              <Download className="h-3.5 w-3.5 animate-bounce" />
+              <span>Download Source ZIP</span>
+            </a>
+
+            <button 
+              onClick={onGoToPortal}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 font-bold rounded-lg border border-slate-700 transition flex items-center gap-1.5"
+              id="go-to-portal-btn"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Go to Captive Portal
+            </button>
+          </div>
         </div>
       </header>
 
@@ -476,13 +488,6 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
               >
                 <Database className="h-4 w-4" />
                 System Audit Logs
-              </button>
-              <button 
-                onClick={() => setActiveTab('developer')} 
-                className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${activeTab === 'developer' ? 'bg-navy-700 text-yellow-400' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-              >
-                <Settings className="h-4 w-4" />
-                Admin Sandbox
               </button>
             </>
           )}
@@ -1480,52 +1485,6 @@ set api-ssl port=8729 disabled=no certificate=none
                   </table>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* G. DEV SANDBOX TAB */}
-          {activeTab === 'developer' && currentRole === 'Super Admin' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-white font-display">Admin Testing Sandbox</h2>
-                <p className="text-xs text-slate-400">Testing tools, database seed control, and simulation variables</p>
-              </div>
-
-              <div className="bg-slate-950 p-5 rounded-xl border border-navy-700 space-y-4">
-                <h3 className="text-sm font-bold text-yellow-400 font-display">Reset Database & State</h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Reset the local storage database and restore initial seeds (vouchers, agents, active leases, transactions). This is extremely helpful for verifying the core authentication flow again from scratch.
-                </p>
-
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={handleResetSystem}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition"
-                    id="admin-reset-db-btn"
-                  >
-                    Reset System Database
-                  </button>
-
-                  {resetSuccess && (
-                    <span className="text-xs text-emerald-400 font-bold">✓ System state successfully cleared and re-seeded.</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-5 rounded-xl border border-navy-700 space-y-3">
-                <h3 className="text-sm font-bold text-white font-display">Simulation Config Values</h3>
-                <div className="grid grid-cols-2 gap-4 text-xs font-mono text-slate-300">
-                  <div className="p-3 bg-slate-900 border border-navy-800 rounded">
-                    <p className="text-slate-500 text-[10px]">CLIENT SIMULATOR MAC</p>
-                    <p className="font-bold text-white mt-1">{state.clientMAC}</p>
-                  </div>
-                  <div className="p-3 bg-slate-900 border border-navy-800 rounded">
-                    <p className="text-slate-500 text-[10px]">CLIENT BROWSER FP</p>
-                    <p className="font-bold text-white mt-1">{state.clientFingerprint}</p>
-                  </div>
-                </div>
-              </div>
-
             </div>
           )}
 
