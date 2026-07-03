@@ -1,0 +1,1287 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Wifi, 
+  Copy, 
+  Check, 
+  Smartphone, 
+  Tv, 
+  HelpCircle, 
+  MessageSquare, 
+  Phone, 
+  Clock, 
+  Zap, 
+  Info, 
+  X, 
+  ArrowRight,
+  User,
+  Activity,
+  AlertTriangle,
+  Lock,
+  RotateCcw
+} from 'lucide-react';
+import { AppState, generateVoucherCode } from '../data';
+import { Package, Voucher } from '../types';
+
+interface PortalViewProps {
+  state: AppState;
+  onStateUpdate: () => void;
+  onGoToAdmin: () => void;
+}
+
+export default function PortalView({ state, onStateUpdate, onGoToAdmin }: PortalViewProps) {
+  // Client connection states
+  const [activeSession, setActiveSession] = useState<any>(null);
+  const [voucherCodeInput, setVoucherCodeInput] = useState('');
+  const [copiedMac, setCopiedMac] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Modals / Sections
+  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
+  const [paymentPhone, setPaymentPhone] = useState('');
+  const [paymentCarrier, setPaymentCarrier] = useState<'MTN' | 'Airtel' | 'Pesapal'>('MTN');
+  const [paymentStep, setPaymentStep] = useState<'details' | 'ussd' | 'processing' | 'success'>('details');
+  const [ussdPin, setUssdPin] = useState('');
+  const [generatedVoucher, setGeneratedVoucher] = useState<string | null>(null);
+  const [pesapalSubMethod, setPesapalSubMethod] = useState<'card' | 'wallet'>('card');
+  const [cardNum, setCardNum] = useState('');
+  const [cardExp, setCardExp] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+
+  // Find My Voucher
+  const [lookupPhone, setLookupPhone] = useState('');
+  const [lookupResults, setLookupResults] = useState<Voucher[]>([]);
+  const [hasSearchedVouchers, setHasSearchedVouchers] = useState(false);
+
+  // Smart TV Registration
+  const [tvVoucher, setTvVoucher] = useState('');
+  const [tvMac, setTvMac] = useState('');
+  const [tvSuccess, setTvSuccess] = useState(false);
+
+  // FAQ collapsible state
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Free Trial Timer Simulation
+  const [trialTimeRemaining, setTrialTimeRemaining] = useState<number | null>(null);
+  const [trialEndedAlert, setTrialEndedAlert] = useState(false);
+
+  // Effect to sync and find active session for current MAC
+  useEffect(() => {
+    const currentSession = state.sessions.find(s => s.mac === state.clientMAC);
+    setActiveSession(currentSession || null);
+
+    // If active session is a free trial, manage its timer
+    if (currentSession && currentSession.voucherCode === "FREE-TRIAL-TEMP") {
+      const started = new Date(currentSession.startedAt).getTime();
+      const durationMs = currentSession.durationMinutes * 60 * 1000;
+      const endsAt = started + durationMs;
+      
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.floor((endsAt - Date.now()) / 1000));
+        if (remaining <= 0) {
+          // Free trial expired!
+          setTrialTimeRemaining(null);
+          handleDisconnect();
+          setTrialEndedAlert(true);
+        } else {
+          setTrialTimeRemaining(remaining);
+        }
+      };
+
+      updateTimer();
+      const timer = setInterval(updateTimer, 1000);
+      return () => clearInterval(timer);
+    } else {
+      setTrialTimeRemaining(null);
+    }
+  }, [state.sessions, state.clientMAC]);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMac(true);
+    setTimeout(() => setCopiedMac(false), 2000);
+  };
+
+  // 1. Voucher Redemption
+  const handleConnectVoucher = (codeToUse?: string) => {
+    const code = (codeToUse || voucherCodeInput).trim().toUpperCase();
+    if (!code) {
+      setErrorMessage("Please enter a valid voucher code.");
+      return;
+    }
+
+    // Lookup voucher
+    const voucherIndex = state.vouchers.findIndex(v => v.code === code);
+    if (voucherIndex === -1) {
+      setErrorMessage("Voucher code not found. Please verify and try again.");
+      state.addLog('System', 'Client Portal', 'Voucher Failed', `Attempted invalid voucher code: ${code}`);
+      return;
+    }
+
+    const voucher = state.vouchers[voucherIndex];
+
+    // Check status
+    if (voucher.status === 'expired') {
+      setErrorMessage("This voucher code has already expired.");
+      return;
+    }
+
+    // Verify package and device binding
+    const pkg = state.packages.find(p => p.id === voucher.packageId);
+    if (!pkg) {
+      setErrorMessage("Invalid package associated with voucher.");
+      return;
+    }
+
+    // Device binding checks:
+    // If not family plan, bind to first MAC that connects
+    const alreadyBound = voucher.boundMACs.includes(state.clientMAC);
+    if (voucher.boundMACs.length > 0 && !alreadyBound && pkg.id !== 'pkg-family') {
+      // Check device limit
+      if (voucher.boundMACs.length >= pkg.devices) {
+        setErrorMessage(`Voucher limits reached. This voucher is bound to MAC: ${voucher.boundMACs.join(', ')}.`);
+        state.addLog('System', 'Client Portal', 'Binding Failed', `Device ${state.clientMAC} failed to use bound voucher ${code}`);
+        return;
+      }
+    }
+
+    // Apply binding
+    const updatedBound = alreadyBound 
+      ? voucher.boundMACs 
+      : [...voucher.boundMACs, state.clientMAC];
+
+    // Calculate times if activating for the first time
+    let actTime = voucher.activationTime;
+    let expTime = voucher.expiryTime;
+    let newStatus = voucher.status;
+
+    if (voucher.status === 'unused') {
+      actTime = new Date().toISOString();
+      const expDate = new Date(Date.now() + pkg.durationHours * 60 * 60 * 1000);
+      expTime = expDate.toISOString();
+      newStatus = 'active';
+    }
+
+    // Update voucher in state
+    state.vouchers[voucherIndex] = {
+      ...voucher,
+      status: newStatus as any,
+      activationTime: actTime,
+      expiryTime: expTime,
+      boundMACs: updatedBound
+    };
+
+    // Remove any existing session for this MAC
+    state.sessions = state.sessions.filter(s => s.mac !== state.clientMAC);
+
+    // Create active session
+    const newSession = {
+      id: "sess-" + Date.now(),
+      mac: state.clientMAC,
+      voucherCode: code,
+      speed: pkg.speed,
+      startedAt: actTime || new Date().toISOString(),
+      durationMinutes: pkg.durationHours * 60,
+      dataUsedMB: 0,
+      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
+    };
+
+    state.sessions.push(newSession);
+    state.addLog('System', 'Client Portal', 'Voucher Connected', `Device ${state.clientMAC} connected successfully using voucher ${code} (${pkg.name})`);
+    
+    setSuccessMessage(`Success! Connected to Techaus high-speed internet via ${pkg.name}.`);
+    setErrorMessage(null);
+    setVoucherCodeInput('');
+    
+    state.save();
+    onStateUpdate();
+  };
+
+  // 2. Disconnect
+  const handleDisconnect = () => {
+    const sessionToClose = state.sessions.find(s => s.mac === state.clientMAC);
+    if (sessionToClose) {
+      // If it was a standard voucher, update active status if needed, or keep as active
+      state.sessions = state.sessions.filter(s => s.mac !== state.clientMAC);
+      state.addLog('System', 'Client Portal', 'Disconnected', `Device ${state.clientMAC} disconnected from session ${sessionToClose.id}`);
+      state.save();
+      onStateUpdate();
+    }
+    setActiveSession(null);
+  };
+
+  // 3. Claim Free Trial (35 minutes)
+  const handleClaimFreeTrial = () => {
+    if (state.clientFreeTrialClaimed) {
+      setErrorMessage("You have already claimed your one-time free trial on this device.");
+      return;
+    }
+
+    // Create temp free trial voucher
+    const trialCode = "FREE-TRIAL-TEMP";
+    
+    // Create active session for 35 minutes
+    const newSession = {
+      id: "sess-trial-" + Date.now(),
+      mac: state.clientMAC,
+      voucherCode: trialCode,
+      speed: "3 Mbps",
+      startedAt: new Date().toISOString(),
+      durationMinutes: 35,
+      dataUsedMB: 0,
+      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
+    };
+
+    state.sessions = state.sessions.filter(s => s.mac !== state.clientMAC);
+    state.sessions.push(newSession);
+    state.clientFreeTrialClaimed = true;
+
+    state.addLog('System', 'Client Portal', 'Free Trial Claimed', `Device ${state.clientMAC} started 35 min free trial.`);
+    setSuccessMessage("Enjoy your 35 minutes of free trial internet!");
+    setErrorMessage(null);
+
+    state.save();
+    onStateUpdate();
+  };
+
+  // 4. Buy Package (Simulated Mobile Money Flow)
+  const handleStartPurchase = (pkg: Package) => {
+    setSelectedPackage(pkg);
+    setPaymentPhone(state.vouchers.find(v => v.phone)?.phone || "0772123456"); // Default mock
+    setPaymentCarrier('MTN');
+    setPaymentStep('details');
+    setGeneratedVoucher(null);
+  };
+
+  const handleProcessPayment = () => {
+    if (paymentCarrier === 'Pesapal' && pesapalSubMethod === 'card') {
+      if (cardNum.length < 16) {
+        setErrorMessage("Please enter a valid 16-digit card number.");
+        return;
+      }
+      if (!cardExp.match(/^(0[1-9]|1[0-2])\/[0-9]{2}$/)) {
+        setErrorMessage("Please enter a valid expiry date (MM/YY).");
+        return;
+      }
+      if (cardCvv.length < 3) {
+        setErrorMessage("Please enter your card CVV (3-digits).");
+        return;
+      }
+      setErrorMessage(null);
+      setPaymentStep('processing');
+      
+      // Simulate card transaction validation via Pesapal Gateway API
+      setTimeout(() => {
+        if (!selectedPackage) return;
+        
+        const voucherCode = generateVoucherCode();
+        
+        const newVoucher: Voucher = {
+          code: voucherCode,
+          packageId: selectedPackage.id,
+          status: 'unused',
+          activationTime: null,
+          expiryTime: null,
+          boundMACs: [],
+          phone: "0770000000",
+          agentId: null,
+          createdTime: new Date().toISOString()
+        };
+        state.vouchers.push(newVoucher);
+        
+        const newTxn = {
+          id: "txn-pesa-" + Math.floor(Math.random() * 90000 + 10000),
+          phone: "Card Payment",
+          amountUGX: selectedPackage.priceUGX,
+          packageId: selectedPackage.id,
+          voucherCode: voucherCode,
+          type: 'online' as const,
+          status: 'success' as const,
+          timestamp: new Date().toISOString(),
+          agentId: null,
+          paymentMethod: 'Pesapal' as const
+        };
+        state.transactions.push(newTxn);
+        
+        state.addLog('System', 'Pesapal Gateway', 'Card Payment Success', `Secure card authorization successful for ${selectedPackage.priceUGX} UGX via Pesapal. Generated voucher: ${voucherCode}`);
+        setGeneratedVoucher(voucherCode);
+        setPaymentStep('success');
+        state.save();
+        onStateUpdate();
+      }, 2500);
+      return;
+    }
+
+    if (!paymentPhone.match(/^(07[0-9]{8})$/)) {
+      setErrorMessage("Please enter a valid 10-digit Uganda phone number (e.g., 0772123456).");
+      return;
+    }
+    setErrorMessage(null);
+    setPaymentStep('ussd');
+  };
+
+  const handleSubmitUssdPin = () => {
+    if (ussdPin.length < 4) {
+      setErrorMessage("Please enter your 4 or 5-digit Mobile Money PIN.");
+      return;
+    }
+    setErrorMessage(null);
+    setPaymentStep('processing');
+
+    // Simulate Network delay for Mobile Money transaction validation
+    setTimeout(() => {
+      if (!selectedPackage) return;
+
+      const voucherCode = generateVoucherCode();
+      
+      // Save voucher
+      const newVoucher: Voucher = {
+        code: voucherCode,
+        packageId: selectedPackage.id,
+        status: 'unused',
+        activationTime: null,
+        expiryTime: null,
+        boundMACs: [],
+        phone: paymentPhone,
+        agentId: null,
+        createdTime: new Date().toISOString()
+      };
+
+      state.vouchers.push(newVoucher);
+
+      // Save transaction
+      const newTxn = {
+        id: "txn-" + Math.floor(Math.random() * 90000 + 10000),
+        phone: paymentPhone,
+        amountUGX: selectedPackage.priceUGX,
+        packageId: selectedPackage.id,
+        voucherCode: voucherCode,
+        type: 'online' as const,
+        status: 'success' as const,
+        timestamp: new Date().toISOString(),
+        agentId: null,
+        paymentMethod: paymentCarrier
+      };
+
+      state.transactions.push(newTxn);
+      state.addLog('System', 'Payment Gateway', 'Payment Success', `Online payment of ${selectedPackage.priceUGX} UGX from ${paymentPhone} via ${paymentCarrier}. Generated voucher ${voucherCode}`);
+      
+      setGeneratedVoucher(voucherCode);
+      setPaymentStep('success');
+      state.save();
+      onStateUpdate();
+    }, 2000);
+  };
+
+  // 5. Find My Voucher Lookup
+  const handleVoucherLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lookupPhone) return;
+
+    const results = state.vouchers.filter(v => v.phone === lookupPhone);
+    setLookupResults(results);
+    setHasSearchedVouchers(true);
+  };
+
+  // 6. Smart TV Registration
+  const handleTvRegistration = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tvVoucher || !tvMac) {
+      setErrorMessage("Please enter both voucher code and the Smart TV MAC address.");
+      return;
+    }
+
+    // Verify MAC address format
+    const cleanedMac = tvMac.trim().toUpperCase();
+    if (!cleanedMac.match(/^([0-9A-FA-F]{2}[:-]){5}([0-9A-FA-F]{2})$/)) {
+      setErrorMessage("Please enter a valid MAC address format (e.g. AA:BB:CC:DD:EE:FF).");
+      return;
+    }
+
+    const voucherIndex = state.vouchers.findIndex(v => v.code === tvVoucher.trim().toUpperCase());
+    if (voucherIndex === -1) {
+      setErrorMessage("Voucher code not found.");
+      return;
+    }
+
+    const voucher = state.vouchers[voucherIndex];
+    const pkg = state.packages.find(p => p.id === voucher.packageId);
+    if (!pkg) return;
+
+    if (voucher.boundMACs.includes(cleanedMac)) {
+      setSuccessMessage("This Smart TV MAC address is already registered on this voucher.");
+      setTvSuccess(true);
+      return;
+    }
+
+    if (voucher.boundMACs.length >= pkg.devices && pkg.id !== 'pkg-family') {
+      setErrorMessage(`Voucher device limit reached (${pkg.devices} max). Cannot register TV.`);
+      return;
+    }
+
+    // Bind MAC to voucher
+    const updatedBound = [...voucher.boundMACs, cleanedMac];
+    let actTime = voucher.activationTime;
+    let expTime = voucher.expiryTime;
+    let newStatus = voucher.status;
+
+    if (voucher.status === 'unused') {
+      actTime = new Date().toISOString();
+      expTime = new Date(Date.now() + pkg.durationHours * 60 * 60 * 1000).toISOString();
+      newStatus = 'active';
+    }
+
+    state.vouchers[voucherIndex] = {
+      ...voucher,
+      status: newStatus as any,
+      activationTime: actTime,
+      expiryTime: expTime,
+      boundMACs: updatedBound
+    };
+
+    // Auto connect TV session simulation
+    const newSession = {
+      id: "sess-" + Date.now(),
+      mac: cleanedMac,
+      voucherCode: voucher.code,
+      speed: pkg.speed,
+      startedAt: actTime || new Date().toISOString(),
+      durationMinutes: pkg.durationHours * 60,
+      dataUsedMB: 0,
+      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
+    };
+    state.sessions.push(newSession);
+
+    state.addLog('System', 'Client Portal', 'Smart TV Registered', `Smart TV ${cleanedMac} registered and connected using voucher ${voucher.code}`);
+    setSuccessMessage(`Success! Smart TV registered. It is now connected to the internet.`);
+    setErrorMessage(null);
+    setTvSuccess(true);
+    setTvVoucher('');
+    setTvMac('');
+
+    state.save();
+    onStateUpdate();
+  };
+
+  const getCarrierBg = (carrier: string) => {
+    if (carrier === 'MTN') return 'bg-yellow-500 hover:bg-yellow-600 text-black';
+    if (carrier === 'Airtel') return 'bg-red-600 hover:bg-red-700 text-white';
+    return 'bg-emerald-600 hover:bg-emerald-700 text-white';
+  };
+
+  const getCarrierLogoColor = (carrier: string) => {
+    if (carrier === 'MTN') return 'text-yellow-500';
+    if (carrier === 'Airtel') return 'text-red-500';
+    return 'text-emerald-500';
+  };
+
+  // Collapsible FAQ content
+  const faqs = [
+    {
+      q: "Where can I buy physical vouchers?",
+      a: "You can buy physical scratch cards from any authorized Techaus Connect retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, and Arua. Look for our navy and teal banners!"
+    },
+    {
+      q: "How does the device binding work?",
+      a: "To protect your bandwidth, your voucher automatically binds to the MAC address of the first device you connect with (except for Family plans, which allow up to 4 devices)."
+    },
+    {
+      q: "Can I use the internet on my Smart TV or PlayStation?",
+      a: "Yes! Connect your Smart TV/console to the Techaus Wi-Fi network, copy its MAC address from its network settings, and register it here using the 'Smart TV Registration' form below."
+    },
+    {
+      q: "How can I check my remaining session time?",
+      a: "As long as you are connected to Techaus Wi-Fi, visiting this portal will automatically display your session status, remaining time, and data usage statistics."
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      
+      {/* 1. Header & Live Connection Bar */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-navy-800/90 border-b border-navy-700 shadow-md">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-teal-500 rounded-lg text-navy-800 shadow-lg shadow-teal-500/20">
+              <Wifi className="h-6 w-6 animate-pulse" id="portal-wifi-icon" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold font-display tracking-tight text-white flex items-center gap-1.5">
+                Techaus <span className="text-teal-400">Connect</span>
+              </h1>
+              <p className="text-[10px] text-slate-300 font-medium hidden sm:block">Internet that works when you need it.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={onGoToAdmin}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium rounded-md border border-slate-700 transition flex items-center gap-1"
+              id="admin-portal-switch"
+            >
+              <User className="h-3.5 w-3.5" />
+              Admin Portal
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full space-y-6">
+
+        {/* Floating notifications */}
+        <AnimatePresence>
+          {errorMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="p-4 bg-red-950/80 border border-red-500/50 text-red-200 text-sm rounded-xl flex items-start gap-3 shadow-lg"
+            >
+              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">Error Occurred</p>
+                <p className="text-xs text-red-300">{errorMessage}</p>
+              </div>
+              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-200">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+
+          {successMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="p-4 bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-sm rounded-xl flex items-start gap-3 shadow-lg"
+            >
+              <Check className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">Success</p>
+                <p className="text-xs text-emerald-300">{successMessage}</p>
+              </div>
+              <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-200">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+
+          {trialEndedAlert && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="p-6 bg-slate-900 border-2 border-yellow-500 text-center rounded-2xl shadow-2xl max-w-md mx-auto"
+            >
+              <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">Your Free Trial Has Ended!</h3>
+              <p className="text-slate-300 text-sm mb-4">
+                Thank you for trying Techaus Connect. To keep browsing without interruption, please purchase one of our affordable high-speed packages below.
+              </p>
+              <button 
+                onClick={() => setTrialEndedAlert(false)}
+                className="w-full py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold rounded-xl transition"
+              >
+                Buy A Package
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 2. Customer Post-Login Self Service Portal OR Main Redemption Panel */}
+        {activeSession ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 bg-gradient-to-br from-navy-800 to-navy-900 rounded-2xl border border-teal-500/30 shadow-xl overflow-hidden relative"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl -z-10" />
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-400">
+                  <Activity className="h-6 w-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-white font-display">Active Internet Session</h2>
+                    <span className="px-2 py-0.5 text-[10px] bg-emerald-500/20 text-emerald-300 rounded-full font-semibold border border-emerald-500/30">Connected</span>
+                  </div>
+                  <p className="text-xs text-slate-300">MAC Address: <span className="font-mono text-white">{state.clientMAC}</span></p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleDisconnect}
+                  className="px-4 py-2 bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Disconnect Session
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-navy-700/60 pt-4">
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-navy-700/40">
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Remaining Time</p>
+                {trialTimeRemaining !== null ? (
+                  <p className="text-2xl font-bold text-yellow-400 font-mono mt-1">
+                    {Math.floor(trialTimeRemaining / 60)}m {trialTimeRemaining % 60}s
+                  </p>
+                ) : (
+                  <p className="text-xl font-bold text-teal-400 font-mono mt-1">
+                    High Speed Unlimited
+                  </p>
+                )}
+                <span className="text-[10px] text-slate-500">Based on voucher limits</span>
+              </div>
+
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-navy-700/40">
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Speed Cap</p>
+                <p className="text-2xl font-bold text-white mt-1 flex items-center gap-1">
+                  <Zap className="h-5 w-5 text-teal-400" />
+                  {activeSession.speed}
+                </p>
+                <span className="text-[10px] text-slate-500">Symmetric download/upload</span>
+              </div>
+
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-navy-700/40">
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Voucher Code</p>
+                <p className="text-lg font-bold text-white font-mono mt-2 select-all">
+                  {activeSession.voucherCode}
+                </p>
+                <span className="text-[10px] text-slate-500">Auto-bound to this device</span>
+              </div>
+            </div>
+
+            <div className="mt-5 p-3.5 bg-slate-900/40 rounded-xl border border-teal-500/10 flex items-center gap-3">
+              <Info className="h-4 w-4 text-teal-400 shrink-0" />
+              <p className="text-xs text-slate-300">
+                <strong>Need more time?</strong> You can purchase a top-up package below. Any unused time on your current voucher will be preserved.
+              </p>
+            </div>
+          </motion.div>
+        ) : (
+          /* Redemptions Block */
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            {/* Voucher Code Box */}
+            <div className="md:col-span-7 bg-navy-800 rounded-2xl border border-navy-700 p-6 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-2xl -z-10" />
+              
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2.5 py-1 text-xs bg-teal-500/10 text-teal-300 rounded-full font-bold border border-teal-500/20">Step 1</span>
+                  <h2 className="text-lg font-bold text-white font-display">Enter Your Voucher Code</h2>
+                </div>
+                <p className="text-xs text-slate-300 mb-4">
+                  If you bought a scratch card from an agent or purchased online, enter the 12-digit code below to start browsing.
+                </p>
+
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="XXXX-XXXX-XXXX"
+                      value={voucherCodeInput}
+                      onChange={(e) => setVoucherCodeInput(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-slate-950 border border-navy-600 rounded-xl font-mono text-center text-lg text-white font-bold tracking-widest placeholder-slate-600 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
+                      maxLength={14}
+                      id="voucher-code-field"
+                    />
+                  </div>
+
+                  <button 
+                    onClick={() => handleConnectVoucher()}
+                    className="w-full py-3.5 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold rounded-xl shadow-lg shadow-teal-500/20 transition duration-150 flex items-center justify-center gap-2 text-sm"
+                    id="connect-internet-btn"
+                  >
+                    <Wifi className="h-4 w-4" />
+                    Connect to Internet
+                  </button>
+                </div>
+              </div>
+
+              {/* Display Device MAC */}
+              <div className="mt-5 pt-4 border-t border-navy-700/60 flex items-center justify-between text-xs text-slate-400">
+                <span className="flex items-center gap-1">
+                  <Smartphone className="h-4.5 w-4.5 text-slate-400" />
+                  Your Device MAC: <span className="font-mono text-white ml-1 font-semibold">{state.clientMAC}</span>
+                </span>
+                <button 
+                  onClick={() => copyToClipboard(state.clientMAC)}
+                  className="px-2 py-1 bg-slate-900 hover:bg-slate-950 border border-navy-600 rounded text-slate-300 hover:text-white transition flex items-center gap-1 font-medium"
+                >
+                  {copiedMac ? <Check className="h-3 w-3 text-teal-400" /> : <Copy className="h-3 w-3" />}
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Actions Panel */}
+            <div className="md:col-span-5 flex flex-col gap-4">
+              
+              {/* Free Trial Button */}
+              <div className="bg-gradient-to-br from-slate-900 to-navy-900 rounded-2xl border border-navy-700 p-5 shadow-xl relative overflow-hidden flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-teal-300 uppercase tracking-wider font-display">New to Techaus?</h3>
+                    <span className="px-2 py-0.5 text-[9px] bg-teal-400 text-slate-950 rounded-full font-extrabold uppercase">Free</span>
+                  </div>
+                  <h4 className="text-base font-bold text-white mb-1.5">Claim 35 Min Free Trial</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Test our network speed. Available once per device (strictly enforced by MAC + fingerprint).
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  {state.clientFreeTrialClaimed ? (
+                    <div className="py-2.5 px-3 bg-slate-950/80 rounded-xl border border-slate-800 text-center text-xs text-slate-500 font-medium">
+                      Already claimed on this device
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={handleClaimFreeTrial}
+                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-teal-400 font-bold rounded-xl border border-teal-500/30 hover:border-teal-400 transition text-xs flex items-center justify-center gap-1"
+                      id="claim-free-trial-btn"
+                    >
+                      Start Free Trial
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Look Up Voucher */}
+              <div className="bg-slate-900 rounded-2xl border border-navy-700 p-5 shadow-xl">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 font-display">Find My Voucher</h4>
+                <form onSubmit={handleVoucherLookup} className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Enter phone: 07..."
+                    value={lookupPhone}
+                    onChange={(e) => setLookupPhone(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-slate-950 border border-navy-600 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-teal-400"
+                    id="lookup-phone-field"
+                  />
+                  <button 
+                    type="submit"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-bold rounded-lg border border-slate-700 transition"
+                  >
+                    Lookup
+                  </button>
+                </form>
+
+                {hasSearchedVouchers && (
+                  <div className="mt-3 space-y-1.5 max-h-24 overflow-y-auto">
+                    {lookupResults.length === 0 ? (
+                      <p className="text-[10px] text-slate-500 italic">No vouchers found for this number.</p>
+                    ) : (
+                      lookupResults.map(v => {
+                        const pkg = state.packages.find(p => p.id === v.packageId);
+                        return (
+                          <div key={v.code} className="flex items-center justify-between text-[11px] bg-slate-950/80 p-1.5 rounded border border-navy-700/50">
+                            <span className="font-mono font-bold text-teal-300">{v.code}</span>
+                            <span className="text-slate-400 text-[10px]">({pkg?.name})</span>
+                            {v.status === 'unused' ? (
+                              <button 
+                                onClick={() => handleConnectVoucher(v.code)}
+                                className="px-1.5 py-0.5 bg-teal-500 text-slate-950 font-bold rounded text-[9px]"
+                              >
+                                Connect
+                              </button>
+                            ) : (
+                              <span className="text-slate-500 capitalize text-[9px]">{v.status}</span>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* 3. Package Pricing Table */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1.5">
+            <h2 className="text-xl font-bold text-white font-display flex items-center gap-2">
+              <Zap className="h-5 w-5 text-teal-400" />
+              Choose a High-Speed Package
+            </h2>
+            <p className="text-xs text-slate-400">All speeds are symmetric and hard-capped.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {state.packages.map((pkg) => (
+              <div 
+                key={pkg.id}
+                className="bg-navy-800 rounded-2xl border border-navy-700 hover:border-teal-500/50 p-5 flex flex-col justify-between shadow-lg transition duration-200 group relative"
+              >
+                {pkg.id === 'pkg-weekly' && (
+                  <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 text-[9px] bg-teal-400 text-navy-800 font-bold rounded-full border border-teal-300/30 uppercase tracking-wider font-sans shadow-lg">
+                    Best Seller
+                  </span>
+                )}
+                
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-base font-bold text-white font-display group-hover:text-teal-300 transition-colors">
+                      {pkg.name}
+                    </h3>
+                    <span className="px-2 py-0.5 text-[10px] bg-slate-900 text-teal-400 font-mono rounded border border-navy-600">
+                      {pkg.speed}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-baseline gap-1 my-3">
+                    <span className="text-2xl font-black text-white">{pkg.priceUGX.toLocaleString()}</span>
+                    <span className="text-xs font-semibold text-slate-400">UGX</span>
+                    <span className="text-xs text-slate-500 ml-1">/ {pkg.durationHours >= 24 ? `${pkg.durationHours / 24} Day` : `${pkg.durationHours} Hours`}</span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                    {pkg.notes}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-navy-700/60 mt-auto space-y-2.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Devices allowed:</span>
+                    <span className="font-bold text-white">{pkg.devices} {pkg.devices > 1 ? 'Devices' : 'Device'}</span>
+                  </div>
+
+                  <button 
+                    onClick={() => handleStartPurchase(pkg)}
+                    className="w-full py-2 bg-slate-900 hover:bg-teal-500 group-hover:bg-teal-500 text-slate-200 hover:text-navy-800 group-hover:text-navy-800 font-bold text-xs rounded-xl border border-navy-600 group-hover:border-teal-400 transition duration-150 flex items-center justify-center gap-1"
+                    id={`buy-pkg-${pkg.id}`}
+                  >
+                    Buy Online Now
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 4. Physical Agent Banner */}
+        <div className="bg-gradient-to-r from-teal-900/30 to-navy-900/40 border border-teal-500/20 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 shrink-0 mt-0.5">
+              <User className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white font-display">No Mobile Money? Purchase from an Agent</h4>
+              <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
+                Visit any retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, or Arua to buy scratch cards and cash vouchers with cash.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              setOpenFaq(0);
+              const element = document.getElementById('faqs-section');
+              if (element) element.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="px-4 py-2 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 hover:border-teal-500/50 text-teal-300 font-bold text-xs rounded-xl transition whitespace-nowrap"
+          >
+            Find Authorized Agents
+          </button>
+        </div>
+
+        {/* 5. Smart TV/Console Registration Section */}
+        <div className="bg-slate-900 border border-navy-700 rounded-2xl p-6 shadow-xl">
+          <div className="flex items-center gap-2 mb-3">
+            <Tv className="h-5 w-5 text-teal-400" />
+            <h3 className="text-base font-bold text-white font-display">Smart TV or Console Registration</h3>
+          </div>
+          <p className="text-xs text-slate-300 mb-4">
+            Smart TVs and gaming consoles don't support standard captive portal login screens. If you want to connect a TV or console, enter your active voucher and the device's MAC address here.
+          </p>
+
+          <form onSubmit={handleTvRegistration} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Voucher Code</label>
+              <input 
+                type="text" 
+                placeholder="XXXX-XXXX-XXXX"
+                value={tvVoucher}
+                onChange={(e) => setTvVoucher(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-navy-600 rounded-xl font-mono text-sm text-white focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
+                id="tv-voucher-input"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">TV / Console MAC Address</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="AA:BB:CC:DD:EE:FF"
+                  value={tvMac}
+                  onChange={(e) => setTvMac(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-slate-950 border border-navy-600 rounded-xl font-mono text-sm text-white focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
+                  id="tv-mac-input"
+                />
+                <button 
+                  type="submit"
+                  className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold text-xs rounded-xl shadow-md transition"
+                  id="tv-register-btn"
+                >
+                  Register TV
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {tvSuccess && (
+            <p className="text-xs text-emerald-400 font-medium mt-3">✓ Device successfully registered. Restart your TV's Wi-Fi network to enjoy connection.</p>
+          )}
+        </div>
+
+        {/* 6. Collapsible FAQ */}
+        <div id="faqs-section" className="bg-navy-800 border border-navy-700 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-teal-400" />
+            <h3 className="text-base font-bold text-white font-display">Frequently Asked Questions</h3>
+          </div>
+
+          <div className="space-y-2.5">
+            {faqs.map((faq, i) => (
+              <div key={i} className="border-b border-navy-700 pb-2.5 last:border-0 last:pb-0">
+                <button 
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between text-left text-xs font-bold text-white hover:text-teal-300 transition py-1"
+                >
+                  <span>{faq.q}</span>
+                  <span className="text-slate-400 text-lg font-mono leading-none">{openFaq === i ? '−' : '+'}</span>
+                </button>
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <p className="text-xs text-slate-300 leading-relaxed mt-2 pl-1 italic">
+                        {faq.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </main>
+
+      {/* 7. Support Footer */}
+      <footer className="mt-auto bg-navy-900 border-t border-navy-700 py-6 text-xs text-slate-400">
+        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-center sm:text-left">
+            <p className="font-bold text-white mb-0.5">Techaus Connect Uganda Ltd</p>
+            <p className="text-[10px]">Serving Bukedea, Kumi, Mbale, Lira, Gulu, and Arua.</p>
+          </div>
+
+          <div className="flex gap-4">
+            <a 
+              href="https://wa.me/256760208497" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-emerald-950 text-slate-300 hover:text-emerald-300 rounded-lg border border-slate-700 hover:border-emerald-500/40 transition"
+            >
+              <MessageSquare className="h-4 w-4 text-emerald-400" />
+              <span>WhatsApp (+256 760 208497)</span>
+            </a>
+            <a 
+              href="tel:+256200971515" 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-navy-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition"
+            >
+              <Phone className="h-4 w-4 text-teal-400" />
+              <span>Call (+256 200 971515)</span>
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Payment Sheet Modal */}
+      <AnimatePresence>
+        {selectedPackage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setSelectedPackage(null)}
+                className="absolute top-4 right-4 p-1 bg-slate-900 hover:bg-slate-950 rounded-full border border-navy-600 text-slate-400 hover:text-white transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              {paymentStep === 'details' && (
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-navy-700">
+                    <Smartphone className="h-5 w-5 text-teal-400" />
+                    <div>
+                      <h3 className="text-base font-bold text-white font-display">Complete Online Purchase</h3>
+                      <p className="text-[10px] text-slate-400">Uganda Mobile Money Checkout</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-navy-600 flex justify-between items-baseline">
+                    <span className="text-xs text-slate-300">Total Price:</span>
+                    <span className="text-xl font-black text-white">{selectedPackage.priceUGX.toLocaleString()} <span className="text-xs text-slate-400">UGX</span></span>
+                  </div>
+
+                  {/* Carrier selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Payment Option</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button 
+                        onClick={() => setPaymentCarrier('MTN')}
+                        className={`p-2.5 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition ${paymentCarrier === 'MTN' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400' : 'bg-slate-900 border-navy-600 text-slate-400 hover:border-navy-500'}`}
+                      >
+                        <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                        MTN MoMo
+                      </button>
+                      <button 
+                        onClick={() => setPaymentCarrier('Airtel')}
+                        className={`p-2.5 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition ${paymentCarrier === 'Airtel' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-slate-900 border-navy-600 text-slate-400 hover:border-navy-500'}`}
+                      >
+                        <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                        Airtel Money
+                      </button>
+                      <button 
+                        onClick={() => setPaymentCarrier('Pesapal')}
+                        className={`p-2.5 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition ${paymentCarrier === 'Pesapal' ? 'bg-teal-500/10 border-teal-500 text-teal-300' : 'bg-slate-900 border-navy-600 text-slate-400 hover:border-navy-500'}`}
+                        id="pesapal-payment-btn"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-teal-400 animate-pulse" />
+                        Pesapal
+                      </button>
+                    </div>
+                  </div>
+
+                  {paymentCarrier === 'Pesapal' ? (
+                    <div className="space-y-3 p-3 bg-slate-900/60 rounded-xl border border-teal-500/20 text-xs">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-navy-700">
+                        <span className="font-bold text-teal-300">Pesapal Safe Checkout</span>
+                        <span className="text-[9px] bg-teal-400 text-slate-950 px-1.5 py-0.5 rounded font-extrabold uppercase">Secured</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          type="button"
+                          onClick={() => setPesapalSubMethod('card')}
+                          className={`py-1.5 rounded border text-center transition font-bold text-[10px] ${pesapalSubMethod === 'card' ? 'bg-teal-500/15 border-teal-500 text-teal-300' : 'bg-slate-950 border-navy-700 text-slate-400'}`}
+                        >
+                          Credit / Debit Card
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setPesapalSubMethod('wallet')}
+                          className={`py-1.5 rounded border text-center transition font-bold text-[10px] ${pesapalSubMethod === 'wallet' ? 'bg-teal-500/15 border-teal-500 text-teal-300' : 'bg-slate-950 border-navy-700 text-slate-400'}`}
+                        >
+                          Mobile Wallet
+                        </button>
+                      </div>
+
+                      {pesapalSubMethod === 'card' ? (
+                        <div className="space-y-2 mt-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Card Number</label>
+                            <input 
+                              type="text" 
+                              placeholder="4111 2222 3333 4444"
+                              value={cardNum}
+                              onChange={(e) => setCardNum(e.target.value.replace(/\D/g, '').substring(0, 16))}
+                              className="w-full px-3 py-1.5 bg-slate-950 border border-navy-600 rounded text-xs text-white focus:outline-none focus:border-teal-400 font-mono"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Expiry (MM/YY)</label>
+                              <input 
+                                type="text" 
+                                placeholder="12/28"
+                                value={cardExp}
+                                onChange={(e) => setCardExp(e.target.value.substring(0, 5))}
+                                className="w-full px-3 py-1.5 bg-slate-950 border border-navy-600 rounded text-xs text-white text-center focus:outline-none focus:border-teal-400 font-mono"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">CVV</label>
+                              <input 
+                                type="password" 
+                                placeholder="•••"
+                                value={cardCvv}
+                                onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
+                                className="w-full px-3 py-1.5 bg-slate-950 border border-navy-600 rounded text-xs text-white text-center focus:outline-none focus:border-teal-400 font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 mt-2">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mobile Wallet Number (MTN/Airtel)</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. 0772123456"
+                            value={paymentPhone}
+                            onChange={(e) => setPaymentPhone(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-slate-950 border border-navy-600 rounded text-xs text-white focus:outline-none focus:border-teal-400 font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Phone input */
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mobile Money Phone Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. 0772123456"
+                        value={paymentPhone}
+                        onChange={(e) => setPaymentPhone(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-950 border border-navy-600 rounded-xl text-sm font-mono text-white focus:outline-none focus:border-teal-400"
+                        id="portal-payment-phone"
+                      />
+                      <span className="text-[10px] text-slate-500 italic">Enter the 10-digit number to receive the prompt.</span>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handleProcessPayment}
+                    className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold text-sm rounded-xl transition flex items-center justify-center gap-1"
+                  >
+                    Send Payment Request
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {paymentStep === 'ussd' && (
+                <div className="p-6 text-center space-y-4 bg-slate-900">
+                  <div className="mx-auto h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-400 border border-yellow-500/30">
+                    <Lock className="h-6 w-6" />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-bold text-yellow-400 uppercase tracking-wider">USSD Security Verification</h3>
+                    <p className="text-lg font-black text-white mt-1">Confirm on Phone</p>
+                    <p className="text-xs text-slate-300 leading-relaxed mt-2 px-2">
+                      We have sent a secure payment push request to <span className="font-mono font-bold text-white">{paymentPhone}</span>. Please verify by typing your Mobile Money PIN.
+                    </p>
+                  </div>
+
+                  {/* Simulated Mobile Device Frame for Enter PIN */}
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 max-w-xs mx-auto text-left space-y-3 font-mono">
+                    <div className="text-[11px] text-yellow-500 border-b border-slate-800 pb-1.5">
+                      {paymentCarrier === 'MTN' ? 'MTN MoMo API Prompt' : 'Airtel Money API Prompt'}
+                    </div>
+                    <div className="text-xs text-slate-200">
+                      Charge: {selectedPackage.priceUGX.toLocaleString()} UGX for {selectedPackage.name}. Enter MoMo PIN to authorize:
+                    </div>
+                    <input 
+                      type="password" 
+                      placeholder="••••"
+                      value={ussdPin}
+                      onChange={(e) => setUssdPin(e.target.value.replace(/\D/g, ''))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-center text-white text-lg tracking-widest focus:outline-none"
+                      maxLength={5}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setSelectedPackage(null)}
+                        className="flex-1 py-1 bg-slate-900 text-slate-400 border border-slate-800 rounded text-[10px] text-center"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleSubmitUssdPin}
+                        className={`flex-1 py-1 font-bold rounded text-[10px] text-center ${getCarrierBg(paymentCarrier)}`}
+                      >
+                        Send PIN
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentStep === 'processing' && (
+                <div className="p-8 text-center space-y-4">
+                  <div className="h-10 w-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div>
+                    <h3 className="text-base font-bold text-white">Validating Transaction</h3>
+                    <p className="text-xs text-slate-400 mt-1">Polling carrier logs for approval receipt...</p>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic">Usually takes 2-3 seconds</p>
+                </div>
+              )}
+
+              {paymentStep === 'success' && generatedVoucher && (
+                <div className="p-6 text-center space-y-5">
+                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
+                    <Check className="h-6 w-6" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-bold text-white">Payment Received!</h3>
+                    <p className="text-xs text-slate-400">A voucher has been automatically generated for you.</p>
+                  </div>
+
+                  {/* Voucher display */}
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-teal-500/20 shadow-inner relative group">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Your Code (Symmetric Speed {selectedPackage.speed})</p>
+                    <p className="text-2xl font-black text-teal-400 font-mono tracking-wider select-all" id="newly-bought-voucher">
+                      {generatedVoucher}
+                    </p>
+                    
+                    <button 
+                      onClick={() => copyToClipboard(generatedVoucher)}
+                      className="absolute top-2.5 right-2.5 p-1 bg-slate-900 hover:bg-slate-950 border border-navy-700 rounded text-slate-400 hover:text-white transition"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => {
+                        handleConnectVoucher(generatedVoucher);
+                        setSelectedPackage(null);
+                      }}
+                      className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold text-xs rounded-xl shadow-lg shadow-teal-500/10 transition flex items-center justify-center gap-1.5"
+                    >
+                      <Wifi className="h-4 w-4" />
+                      Auto-Connect Current Device
+                    </button>
+                    
+                    <button 
+                      onClick={() => setSelectedPackage(null)}
+                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition"
+                    >
+                      Close & Keep Code
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
