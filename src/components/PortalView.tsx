@@ -22,51 +22,7 @@ import {
   Download
 } from 'lucide-react';
 import { AppState, generateVoucherCode } from '../data';
-import { Package, Voucher, AdTrialClaim } from '../types';
-
-interface SponsorAd {
-  id: string;
-  brand: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  ctaText: string;
-  tagline: string;
-  themeColor: string;
-}
-
-const SPONSOR_ADS: SponsorAd[] = [
-  {
-    id: "ad-mtn",
-    brand: "MTN Uganda",
-    title: "MoMoPay - Fast, Secure, and Cashless Payments",
-    description: "Pay for your Techaus internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
-    imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
-    ctaText: "Explore MTN MoMo",
-    tagline: "Everywhere You Go",
-    themeColor: "from-yellow-400 to-amber-500"
-  },
-  {
-    id: "ad-airtel",
-    brand: "Airtel Uganda",
-    title: "Airtel Money Super Saver",
-    description: "Get 5% cash-back on all data bundle purchases using Airtel Money. Enjoy reliable 4G LTE internet speed across all cities in Uganda.",
-    imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=800&q=80",
-    ctaText: "Get Airtel Bonus",
-    tagline: "The Smartphone Network",
-    themeColor: "from-red-500 to-rose-600"
-  },
-  {
-    id: "ad-techaus",
-    brand: "Techaus Fiber Pro",
-    title: "Upgrade to Ultra-Fast Home Fiber",
-    description: "Bring the ultimate high-speed fiber internet experience to your household starting at only 85,000 UGX/month. Unlimited downloads, multiple screens, lag-free gaming!",
-    imageUrl: "https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&w=800&q=80",
-    ctaText: "Check Fiber Coverage",
-    tagline: "Your Tech Connection",
-    themeColor: "from-teal-500 to-cyan-600"
-  }
-];
+import { Package, Voucher, AdTrialClaim, SponsorAd } from '../types';
 
 interface PortalViewProps {
   state: AppState;
@@ -307,11 +263,27 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       return;
     }
 
+    // Get active ads
+    const activeAds = (state.sponsorAds || []).filter(ad => ad.active);
+    if (activeAds.length === 0) {
+      setErrorMessage("No sponsor campaigns are active right now. Please buy a high-speed voucher or check back later.");
+      return;
+    }
+
     // Start with 0 completed ads
     setCompletedAdsCount(0);
 
     // Pick random sponsor ad
-    const randomAd = SPONSOR_ADS[Math.floor(Math.random() * SPONSOR_ADS.length)];
+    const randomAd = activeAds[Math.floor(Math.random() * activeAds.length)];
+    
+    // Increment impressions in state
+    const adIndex = state.sponsorAds.findIndex(a => a.id === randomAd.id);
+    if (adIndex !== -1) {
+      state.sponsorAds[adIndex].impressions = (state.sponsorAds[adIndex].impressions || 0) + 1;
+      state.save();
+      onStateUpdate();
+    }
+
     setActiveAd(randomAd);
     setAdCountdown(15);
     setAdFinished(false);
@@ -325,11 +297,22 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     const nextCompleted = completedAdsCount + 1;
     setCompletedAdsCount(nextCompleted);
 
+    const activeAds = (state.sponsorAds || []).filter(ad => ad.active);
+    if (activeAds.length === 0) return;
+
     // Pick a different ad to avoid immediate repetition
-    const otherAds = SPONSOR_ADS.filter(ad => ad.id !== activeAd.id);
+    const otherAds = activeAds.filter(ad => ad.id !== activeAd.id);
     const chosenAd = otherAds.length > 0 
       ? otherAds[Math.floor(Math.random() * otherAds.length)] 
-      : SPONSOR_ADS[Math.floor(Math.random() * SPONSOR_ADS.length)];
+      : activeAds[Math.floor(Math.random() * activeAds.length)];
+
+    // Increment impressions in state
+    const adIndex = state.sponsorAds.findIndex(a => a.id === chosenAd.id);
+    if (adIndex !== -1) {
+      state.sponsorAds[adIndex].impressions = (state.sponsorAds[adIndex].impressions || 0) + 1;
+      state.save();
+      onStateUpdate();
+    }
 
     setActiveAd(chosenAd);
     setAdCountdown(15);
@@ -854,9 +837,15 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
                   <div className="flex items-center gap-3 pt-2">
                     <button 
                       onClick={() => {
+                        const adIndex = state.sponsorAds.findIndex(a => a.id === activeAd.id);
+                        if (adIndex !== -1) {
+                          state.sponsorAds[adIndex].clicks = (state.sponsorAds[adIndex].clicks || 0) + 1;
+                          state.save();
+                          onStateUpdate();
+                        }
                         alert(`Simulating ad click-through to sponsor website! This triggers conversion credit for ${activeAd.brand}.`);
                       }}
-                      className="flex-1 text-center py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
+                      className="flex-1 text-center py-2.5 bg-slate-850 hover:bg-slate-750 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
                     >
                       {activeAd.ctaText}
                     </button>

@@ -1,4 +1,4 @@
-import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog, AdTrialClaim } from './types';
+import { Package, RouterSite, Agent, Voucher, ActiveSession, Transaction, AuditLog, AdTrialClaim, SponsorAd } from './types';
 
 // Helper to generate a Uganda-styled phone number
 export const samplePhones = ["0772123456", "0788987654", "0701555444", "0752111222"];
@@ -356,6 +356,61 @@ export const INITIAL_AD_TRIAL_CLAIMS: AdTrialClaim[] = [
   }
 ];
 
+export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
+  {
+    id: "ad-mtn",
+    brand: "MTN Uganda",
+    title: "MoMoPay - Fast, Secure, and Cashless Payments",
+    description: "Pay for your Techaus internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
+    imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Explore MTN MoMo",
+    tagline: "Everywhere You Go",
+    themeColor: "from-yellow-400 to-amber-500",
+    impressions: 485,
+    clicks: 124,
+    active: true
+  },
+  {
+    id: "ad-airtel",
+    brand: "Airtel Uganda",
+    title: "Airtel Money - Secure Smart Cash Transfers",
+    description: "Send money across Uganda and East Africa with ease. Pay your bills, utilities, and buy Techaus internet packages instantly using Airtel Money. Zero fees on top-up transfers!",
+    imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Explore Airtel Money",
+    tagline: "The Smartphone Network",
+    themeColor: "from-red-500 to-rose-600",
+    impressions: 398,
+    clicks: 86,
+    active: true
+  },
+  {
+    id: "ad-techaus",
+    brand: "Techaus Fiber",
+    title: "Techaus Fiber Pro - Superfast Home & Office Internet",
+    description: "Are you tired of data bundles? Upgrade to a dedicated Techaus Fiber line for your residence or business starting at just 150,000 UGX/month. Unlimited downloads, 99.9% uptime!",
+    imageUrl: "https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Order Home Fiber",
+    tagline: "Unleash Gigaspeed Broadband",
+    themeColor: "from-teal-500 to-cyan-600",
+    impressions: 290,
+    clicks: 102,
+    active: true
+  },
+  {
+    id: "ad-coop",
+    brand: "Techaus Reseller",
+    title: "Earn Extra Cash - Become a Hotspot Reseller Agent!",
+    description: "Do you run a shop, salon, or retail stand near our hotspot zones? Apply to become a Reseller Agent, purchase wallet credit, sell high-speed vouchers, and earn up to 15% instant commission!",
+    imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80",
+    ctaText: "Apply as Reseller",
+    tagline: "Grow Your Retail Business",
+    themeColor: "from-purple-500 to-indigo-600",
+    impressions: 184,
+    clicks: 45,
+    active: true
+  }
+];
+
 
 // Local Storage Sync Engine
 export function getStoredData<T>(key: string, defaultValue: T): T {
@@ -390,6 +445,7 @@ export class AppState {
   transactions: Transaction[];
   logs: AuditLog[];
   adTrialClaims: AdTrialClaim[];
+  sponsorAds: SponsorAd[];
   
   // Current client device info
   clientMAC: string;
@@ -405,6 +461,7 @@ export class AppState {
     this.transactions = getStoredData('transactions', INITIAL_TRANSACTIONS);
     this.logs = getStoredData('logs', INITIAL_LOGS);
     this.adTrialClaims = getStoredData('ad_trial_claims', INITIAL_AD_TRIAL_CLAIMS);
+    this.sponsorAds = getStoredData('sponsor_ads', INITIAL_SPONSOR_ADS);
 
     // Get or initialize device-specific simulation
     this.clientMAC = getStoredData('client_mac', this.randomMAC());
@@ -426,6 +483,7 @@ export class AppState {
         if (data.transactions) this.transactions = data.transactions;
         if (data.logs) this.logs = data.logs;
         if (data.adTrialClaims) this.adTrialClaims = data.adTrialClaims;
+        if (data.sponsorAds) this.sponsorAds = data.sponsorAds;
         
         // Save to local storage cache
         setStoredData('packages', this.packages);
@@ -436,6 +494,7 @@ export class AppState {
         setStoredData('transactions', this.transactions);
         setStoredData('logs', this.logs);
         setStoredData('ad_trial_claims', this.adTrialClaims);
+        setStoredData('sponsor_ads', this.sponsorAds);
       }
     } catch (e) {
       console.warn("Failed to load state from server backend, using local storage fallback:", e);
@@ -465,6 +524,7 @@ export class AppState {
     setStoredData('transactions', this.transactions);
     setStoredData('logs', this.logs);
     setStoredData('ad_trial_claims', this.adTrialClaims);
+    setStoredData('sponsor_ads', this.sponsorAds);
     setStoredData('client_mac', this.clientMAC);
     setStoredData('client_fingerprint', this.clientFingerprint);
     setStoredData('client_free_trial_claimed', this.clientFreeTrialClaimed);
@@ -483,7 +543,8 @@ export class AppState {
         sessions: this.sessions,
         transactions: this.transactions,
         logs: this.logs,
-        adTrialClaims: this.adTrialClaims
+        adTrialClaims: this.adTrialClaims,
+        sponsorAds: this.sponsorAds
       })
     }).catch(e => console.error("Failed to sync state to server backend:", e));
   }
@@ -497,6 +558,7 @@ export class AppState {
     localStorage.removeItem('tbs_transactions');
     localStorage.removeItem('tbs_logs');
     localStorage.removeItem('tbs_ad_trial_claims');
+    localStorage.removeItem('tbs_sponsor_ads');
     localStorage.removeItem('tbs_client_mac');
     localStorage.removeItem('tbs_client_fingerprint');
     localStorage.removeItem('tbs_client_free_trial_claimed');
@@ -513,6 +575,7 @@ export class AppState {
         this.transactions = data.transactions;
         this.logs = data.logs;
         this.adTrialClaims = data.adTrialClaims || [];
+        this.sponsorAds = data.sponsorAds || [];
       } else {
         throw new Error("Reset response not OK");
       }
@@ -526,6 +589,7 @@ export class AppState {
       this.transactions = INITIAL_TRANSACTIONS;
       this.logs = INITIAL_LOGS;
       this.adTrialClaims = INITIAL_AD_TRIAL_CLAIMS;
+      this.sponsorAds = INITIAL_SPONSOR_ADS;
     }
     
     this.clientMAC = this.randomMAC();

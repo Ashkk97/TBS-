@@ -95,3 +95,17 @@ export interface AdTrialClaim {
   mac: string;
   timestamp: string;
 }
+
+export interface SponsorAd {
+  id: string;
+  brand: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  ctaText: string;
+  tagline: string;
+  themeColor: string;
+  impressions: number;
+  clicks: number;
+  active: boolean;
+}

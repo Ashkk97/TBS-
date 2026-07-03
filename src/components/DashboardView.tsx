@@ -28,7 +28,8 @@ import {
   FileSpreadsheet,
   Download,
   Copy,
-  Terminal
+  Terminal,
+  Megaphone
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -46,7 +47,7 @@ import {
   Legend
 } from 'recharts';
 import { AppState, generateVoucherCode } from '../data';
-import { Voucher, Package, Agent, ActiveSession, RouterSite } from '../types';
+import { Voucher, Package, Agent, ActiveSession, RouterSite, SponsorAd } from '../types';
 
 interface DashboardViewProps {
   state: AppState;
@@ -61,6 +62,16 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
 
   // Tabs by Role
   const [activeTab, setActiveTab] = useState<string>('overview');
+
+  // Ad Analytics Calculations
+  const adStats = useMemo(() => {
+    const list = state.sponsorAds || [];
+    const totalImpressions = list.reduce((acc, curr) => acc + (curr.impressions || 0), 0);
+    const totalClicks = list.reduce((acc, curr) => acc + (curr.clicks || 0), 0);
+    const ctr = totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(1)) : 0.0;
+    const activeCount = list.filter(a => a.active).length;
+    return { totalImpressions, totalClicks, ctr, activeCount };
+  }, [state.sponsorAds]);
 
   // Search & Filter state
   const [voucherSearch, setVoucherSearch] = useState('');
@@ -92,6 +103,22 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
   const [selectedSiteForScript, setSelectedSiteForScript] = useState('site-bukedea');
   const [hotspotInterface, setHotspotInterface] = useState('ether2-hotspot');
   const [hotspotProfileName, setHotspotProfileName] = useState('Techaus_Hotspot');
+
+  // Ad Management form state
+  const [showAdCreateModal, setShowAdCreateModal] = useState(false);
+  const [editingAd, setEditingAd] = useState<SponsorAd | null>(null);
+  const [adForm, setAdForm] = useState<Partial<SponsorAd>>({
+    brand: '',
+    title: '',
+    description: '',
+    imageUrl: 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?auto=format&fit=crop&w=800&q=80',
+    ctaText: 'Learn More',
+    tagline: '',
+    themeColor: 'from-blue-500 to-indigo-600',
+    active: true,
+    impressions: 0,
+    clicks: 0
+  });
   const [serverDnsName, setServerDnsName] = useState('techaus.connect');
   const [copiedScript, setCopiedScript] = useState(false);
 
@@ -175,6 +202,111 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
     );
 
     setSelectedAgentForTopup(null);
+    state.save();
+    onStateUpdate();
+  };
+
+  // Toggle Ad Campaign Active Status
+  const handleToggleAdActive = (adId: string) => {
+    const adIndex = (state.sponsorAds || []).findIndex(a => a.id === adId);
+    if (adIndex === -1) return;
+    const oldStatus = state.sponsorAds[adIndex].active;
+    state.sponsorAds[adIndex].active = !oldStatus;
+    state.addLog(
+      'Super Admin',
+      'Ad Campaign Dashboard',
+      'Toggle Campaign Status',
+      `Toggled campaign active status for ${state.sponsorAds[adIndex].brand} from ${oldStatus ? "Active" : "Inactive"} to ${!oldStatus ? "Active" : "Inactive"}.`
+    );
+    state.save();
+    onStateUpdate();
+  };
+
+  // Delete Ad Campaign
+  const handleDeleteAd = (adId: string) => {
+    const ad = (state.sponsorAds || []).find(a => a.id === adId);
+    if (!ad) return;
+    if (confirm(`Are you sure you want to delete the sponsor campaign for "${ad.brand}"?`)) {
+      state.sponsorAds = (state.sponsorAds || []).filter(a => a.id !== adId);
+      state.addLog(
+        'Super Admin',
+        'Ad Campaign Dashboard',
+        'Delete Campaign',
+        `Deleted campaign for "${ad.brand}": "${ad.title}"`
+      );
+      state.save();
+      onStateUpdate();
+    }
+  };
+
+  // Save Ad Campaign Form
+  const handleSaveAdCampaign = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adForm.brand || !adForm.title || !adForm.description) {
+      alert("Please fill in all required fields (Brand, Title, and Description).");
+      return;
+    }
+
+    if (editingAd) {
+      // Edit existing
+      const adIndex = (state.sponsorAds || []).findIndex(a => a.id === editingAd.id);
+      if (adIndex !== -1) {
+        state.sponsorAds[adIndex] = {
+          ...state.sponsorAds[adIndex],
+          brand: adForm.brand,
+          title: adForm.title,
+          description: adForm.description,
+          imageUrl: adForm.imageUrl || 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?auto=format&fit=crop&w=800&q=80',
+          ctaText: adForm.ctaText || 'Learn More',
+          tagline: adForm.tagline || '',
+          themeColor: adForm.themeColor || 'from-blue-500 to-indigo-600',
+        };
+        state.addLog(
+          'Super Admin',
+          'Ad Campaign Dashboard',
+          'Edit Campaign',
+          `Modified advertisement details for ${adForm.brand}.`
+        );
+      }
+    } else {
+      // Create new
+      const newAd: SponsorAd = {
+        id: "ad-" + Date.now(),
+        brand: adForm.brand,
+        title: adForm.title,
+        description: adForm.description,
+        imageUrl: adForm.imageUrl || 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?auto=format&fit=crop&w=800&q=80',
+        ctaText: adForm.ctaText || 'Learn More',
+        tagline: adForm.tagline || '',
+        themeColor: adForm.themeColor || 'from-blue-500 to-indigo-600',
+        active: true,
+        impressions: 0,
+        clicks: 0
+      };
+      state.sponsorAds = [...(state.sponsorAds || []), newAd];
+      state.addLog(
+        'Super Admin',
+        'Ad Campaign Dashboard',
+        'Create Campaign',
+        `Launched a new advertisement campaign for "${adForm.brand}": "${adForm.title}"`
+      );
+    }
+
+    // Reset and close
+    setShowAdCreateModal(false);
+    setEditingAd(null);
+    setAdForm({
+      brand: '',
+      title: '',
+      description: '',
+      imageUrl: 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?auto=format&fit=crop&w=800&q=80',
+      ctaText: 'Learn More',
+      tagline: '',
+      themeColor: 'from-blue-500 to-indigo-600',
+      active: true,
+      impressions: 0,
+      clicks: 0
+    });
     state.save();
     onStateUpdate();
   };
@@ -483,6 +615,13 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
                 MikroTik Status
               </button>
               <button 
+                onClick={() => setActiveTab('ads')} 
+                className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${activeTab === 'ads' ? 'bg-navy-700 text-teal-300' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
+              >
+                <Megaphone className="h-4 w-4 text-purple-400 animate-pulse" />
+                Ad Campaigns
+              </button>
+              <button 
                 onClick={() => setActiveTab('logs')} 
                 className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${activeTab === 'logs' ? 'bg-navy-700 text-teal-300' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
               >
@@ -522,6 +661,13 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
               >
                 <HardDrive className="h-4 w-4" />
                 Router Uptime
+              </button>
+              <button 
+                onClick={() => setActiveTab('ads')} 
+                className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${activeTab === 'ads' ? 'bg-navy-700 text-teal-300' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
+              >
+                <Megaphone className="h-4 w-4 text-purple-400 animate-pulse" />
+                Ad Campaigns
               </button>
               <button 
                 onClick={() => setActiveTab('logs')} 
@@ -1488,6 +1634,202 @@ set api-ssl port=8729 disabled=no certificate=none
             </div>
           )}
 
+          {/* G. SPONSOR AD CAMPAIGNS TAB */}
+          {activeTab === 'ads' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white font-display">Sponsor Ad Management</h2>
+                  <p className="text-xs text-slate-400">Deploy, pause, and analyze real-time click-through analytics for captive portal advertisements</p>
+                </div>
+                {(currentRole === 'Super Admin' || currentRole === 'Operator') && (
+                  <button
+                    onClick={() => {
+                      setEditingAd(null);
+                      setAdForm({
+                        brand: '',
+                        title: '',
+                        description: '',
+                        imageUrl: 'https://images.unsplash.com/photo-1557200134-90327ee9fafa?auto=format&fit=crop&w=800&q=80',
+                        ctaText: 'Explore Offer',
+                        tagline: '',
+                        themeColor: 'from-blue-500 to-indigo-600',
+                        active: true,
+                        impressions: 0,
+                        clicks: 0
+                      });
+                      setShowAdCreateModal(true);
+                    }}
+                    className="self-start sm:self-center px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-purple-500/10 border border-purple-500/30"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Sponsor Campaign
+                  </button>
+                )}
+              </div>
+
+              {/* Analytics Summary */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-slate-950/50 border border-navy-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Ad Impressions</p>
+                    <p className="text-xl font-extrabold text-white font-mono">{adStats.totalImpressions.toLocaleString()}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/50 border border-navy-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Click-Throughs</p>
+                    <p className="text-xl font-extrabold text-teal-400 font-mono">{adStats.totalClicks.toLocaleString()}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20">
+                    <Check className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/50 border border-navy-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Click-Through Rate (CTR)</p>
+                    <p className="text-xl font-extrabold text-purple-400 font-mono">{adStats.ctr}%</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/50 border border-navy-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Campaigns</p>
+                    <p className="text-xl font-extrabold text-white font-mono">{adStats.activeCount} / {(state.sponsorAds || []).length}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+                    <Globe className="h-5 w-5 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sponsor ad table/grid list */}
+              <div className="bg-slate-950/40 border border-navy-800 rounded-2xl overflow-hidden shadow-md">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-950 text-slate-400 font-bold border-b border-navy-850">
+                      <tr>
+                        <th className="p-4">Sponsor Brand</th>
+                        <th className="p-4">Campaign Banner & Offer Info</th>
+                        <th className="p-4 text-center">Impressions</th>
+                        <th className="p-4 text-center">Clicks</th>
+                        <th className="p-4 text-center">CTR %</th>
+                        <th className="p-4 text-center">Status</th>
+                        {(currentRole === 'Super Admin' || currentRole === 'Operator') && (
+                          <th className="p-4 text-right">Actions</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-navy-900">
+                      {((state.sponsorAds || []).length === 0) ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-slate-500">
+                            No campaigns have been registered. Create a campaign to start serving sponsor ads.
+                          </td>
+                        </tr>
+                      ) : (
+                        (state.sponsorAds || []).map((ad) => {
+                          const ctrPct = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : "0.0";
+                          return (
+                            <tr key={ad.id} className="hover:bg-slate-900/30 transition">
+                              {/* Brand & Theme */}
+                              <td className="p-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${ad.themeColor} flex items-center justify-center text-white font-black text-sm uppercase shadow-md shadow-black/20 shrink-0`}>
+                                    {ad.brand.substring(0, 2)}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-white">{ad.brand}</div>
+                                    <div className="text-[10px] text-slate-400">{ad.tagline || "Hotspot Sponsor"}</div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Title, Banner preview, description */}
+                              <td className="p-4 max-w-sm">
+                                <div className="space-y-1.5">
+                                  <div className="font-bold text-slate-200 line-clamp-1">{ad.title}</div>
+                                  <div className="text-[11px] text-slate-400 line-clamp-2 leading-normal">{ad.description}</div>
+                                  <div className="text-[10px] font-semibold text-teal-400 flex items-center gap-1">
+                                    <span className="text-slate-500">CTA:</span> "{ad.ctaText}"
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Impressions */}
+                              <td className="p-4 text-center font-mono font-medium text-slate-300">
+                                {ad.impressions.toLocaleString()}
+                              </td>
+
+                              {/* Clicks */}
+                              <td className="p-4 text-center font-mono font-medium text-teal-400">
+                                {ad.clicks.toLocaleString()}
+                              </td>
+
+                              {/* CTR % */}
+                              <td className="p-4 text-center font-mono font-semibold text-purple-400">
+                                {ctrPct}%
+                              </td>
+
+                              {/* Status Toggle */}
+                              <td className="p-4 text-center whitespace-nowrap">
+                                <button
+                                  disabled={currentRole === 'Agent'}
+                                  onClick={() => handleToggleAdActive(ad.id)}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all tracking-wider ${
+                                    ad.active 
+                                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20" 
+                                      : "bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20"
+                                  }`}
+                                >
+                                  {ad.active ? "Active" : "Paused"}
+                                </button>
+                              </td>
+
+                              {/* Actions */}
+                              {(currentRole === 'Super Admin' || currentRole === 'Operator') && (
+                                <td className="p-4 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setEditingAd(ad);
+                                        setAdForm({ ...ad });
+                                        setShowAdCreateModal(true);
+                                      }}
+                                      className="p-1.5 bg-slate-900 border border-navy-700 rounded-lg text-slate-400 hover:text-white hover:border-slate-600 transition"
+                                      title="Edit Campaign"
+                                    >
+                                      <Settings className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteAd(ad.id)}
+                                      className="p-1.5 bg-slate-900 border border-navy-700 rounded-lg text-rose-500 hover:bg-rose-950/30 hover:text-rose-400 hover:border-rose-900/50 transition"
+                                      title="Delete Campaign"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -1540,6 +1882,139 @@ set api-ssl port=8729 disabled=no certificate=none
                   className="px-4 py-1.5 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold rounded-lg transition"
                 >
                   Approve Topup
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Ad Campaign Modal */}
+      {showAdCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-navy-800 border border-navy-600 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4 relative">
+            <button 
+              onClick={() => {
+                setShowAdCreateModal(false);
+                setEditingAd(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2 pb-2 border-b border-navy-700">
+              <Megaphone className="h-5 w-5 text-purple-400" />
+              <h3 className="text-base font-bold text-white font-display">
+                {editingAd ? `Configure Ad: ${editingAd.brand}` : "Establish Sponsor Campaign"}
+              </h3>
+            </div>
+
+            <form onSubmit={handleSaveAdCampaign} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Sponsor Brand *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. MTN Uganda"
+                    value={adForm.brand || ''}
+                    onChange={(e) => setAdForm({ ...adForm, brand: e.target.value })}
+                    className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Tagline</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Everywhere You Go"
+                    value={adForm.tagline || ''}
+                    onChange={(e) => setAdForm({ ...adForm, tagline: e.target.value })}
+                    className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Promo Title *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. MoMoPay - Fast, Secure, and Cashless Payments"
+                  value={adForm.title || ''}
+                  onChange={(e) => setAdForm({ ...adForm, title: e.target.value })}
+                  className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Description *</label>
+                <textarea 
+                  required
+                  rows={3}
+                  placeholder="Promotional copy watched by users."
+                  value={adForm.description || ''}
+                  onChange={(e) => setAdForm({ ...adForm, description: e.target.value })}
+                  className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono leading-normal"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Call To Action Text</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Explore MTN MoMo"
+                    value={adForm.ctaText || ''}
+                    onChange={(e) => setAdForm({ ...adForm, ctaText: e.target.value })}
+                    className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Gradient Accent</label>
+                  <select 
+                    value={adForm.themeColor || 'from-blue-500 to-indigo-600'}
+                    onChange={(e) => setAdForm({ ...adForm, themeColor: e.target.value })}
+                    className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                  >
+                    <option value="from-yellow-400 to-amber-500">MTN Gold (Yellow to Amber)</option>
+                    <option value="from-red-500 to-rose-600">Airtel Ruby (Red to Rose)</option>
+                    <option value="from-teal-500 to-cyan-600">Techaus Cyan (Teal to Cyan)</option>
+                    <option value="from-purple-500 to-indigo-600">Royal Reseller (Purple to Indigo)</option>
+                    <option value="from-emerald-500 to-teal-600">Pure Green (Emerald to Teal)</option>
+                    <option value="from-slate-600 to-slate-800">Classic Charcoal (Slate to Dark)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Banner Image URL</label>
+                <input 
+                  type="text" 
+                  placeholder="https://images.unsplash.com/photo-..."
+                  value={adForm.imageUrl || ''}
+                  onChange={(e) => setAdForm({ ...adForm, imageUrl: e.target.value })}
+                  className="w-full bg-slate-900 border border-navy-600 rounded px-2.5 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-navy-700">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowAdCreateModal(false);
+                    setEditingAd(null);
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 border border-navy-600 rounded-lg text-slate-400 font-bold"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="px-4 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold rounded-lg transition"
+                >
+                  {editingAd ? "Apply Settings" : "Establish Campaign"}
                 </button>
               </div>
             </form>
