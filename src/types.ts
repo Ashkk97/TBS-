@@ -80,6 +80,7 @@ export interface RouterSite {
   ramUsage: number;
   activeUsers: number;
   latencyMs: number;
+  ipAddress?: string;
 }
 
 export interface AuditLog {

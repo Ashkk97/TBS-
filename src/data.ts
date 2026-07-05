@@ -70,12 +70,12 @@ export const INITIAL_PACKAGES: Package[] = [
 ];
 
 export const INITIAL_SITES: RouterSite[] = [
-  { id: "site-bukedea", name: "Bukedea Main Tower", location: "Bukedea", status: "online", cpuUsage: 14, ramUsage: 45, activeUsers: 28, latencyMs: 12 },
-  { id: "site-kumi", name: "Kumi Market Hub", location: "Kumi", status: "online", cpuUsage: 8, ramUsage: 32, activeUsers: 14, latencyMs: 18 },
-  { id: "site-mbale", name: "Mbale Clock Tower", location: "Mbale", status: "online", cpuUsage: 42, ramUsage: 78, activeUsers: 112, latencyMs: 8 },
-  { id: "site-lira", name: "Lira Core Site", location: "Lira", status: "online", cpuUsage: 25, ramUsage: 56, activeUsers: 45, latencyMs: 24 },
-  { id: "site-gulu", name: "Gulu University Tower", location: "Gulu", status: "online", cpuUsage: 19, ramUsage: 41, activeUsers: 39, latencyMs: 21 },
-  { id: "site-arua", name: "Arua Hill Point", location: "Arua", status: "offline", cpuUsage: 0, ramUsage: 0, activeUsers: 0, latencyMs: 999 }
+  { id: "site-bukedea", name: "Bukedea Main Tower", location: "Bukedea", status: "online", cpuUsage: 14, ramUsage: 45, activeUsers: 28, latencyMs: 12, ipAddress: "10.150.12.1" },
+  { id: "site-kumi", name: "Kumi Market Hub", location: "Kumi", status: "online", cpuUsage: 8, ramUsage: 32, activeUsers: 14, latencyMs: 18, ipAddress: "10.150.13.1" },
+  { id: "site-mbale", name: "Mbale Clock Tower", location: "Mbale", status: "online", cpuUsage: 42, ramUsage: 78, activeUsers: 112, latencyMs: 8, ipAddress: "10.150.14.1" },
+  { id: "site-lira", name: "Lira Core Site", location: "Lira", status: "online", cpuUsage: 25, ramUsage: 56, activeUsers: 45, latencyMs: 24, ipAddress: "10.150.15.1" },
+  { id: "site-gulu", name: "Gulu University Tower", location: "Gulu", status: "online", cpuUsage: 19, ramUsage: 41, activeUsers: 39, latencyMs: 21, ipAddress: "10.150.16.1" },
+  { id: "site-arua", name: "Arua Hill Point", location: "Arua", status: "offline", cpuUsage: 0, ramUsage: 0, activeUsers: 0, latencyMs: 999, ipAddress: "10.150.17.1" }
 ];
 
 export const INITIAL_AGENTS: Agent[] = [
@@ -84,11 +84,10 @@ export const INITIAL_AGENTS: Agent[] = [
   { id: "agent-3", name: "John Masaba", location: "Mbale Town Hall Square", walletBalance: 285000, commissionPercent: 12, totalSalesUGX: 1450000, totalCommissionUGX: 174000 }
 ];
 
-// Helper to generate a voucher code XXXX-XXXX-XXXX
+// Helper to generate a voucher code with 6 figures of randomly generated letters and numbers (e.g., A1B2C3)
 export function generateVoucherCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid O, I, 0, 1 for legibility
-  const segment = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  return `${segment()}-${segment()}-${segment()}`;
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
 // Generate pre-populated vouchers
@@ -101,7 +100,7 @@ const formatOffsetDate = (hours: number) => {
 export const INITIAL_VOUCHERS: Voucher[] = [
   // Active/Connected Vouchers
   {
-    code: "TECA-842B-91KM",
+    code: "K3D8H9",
     packageId: "pkg-daily",
     status: "active",
     activationTime: formatOffsetDate(-3), // Activated 3 hours ago
@@ -112,7 +111,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-5)
   },
   {
-    code: "GULU-92BD-884A",
+    code: "G8Y2X5",
     packageId: "pkg-weekly",
     status: "active",
     activationTime: formatOffsetDate(-48), // 2 days ago
@@ -123,7 +122,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-50)
   },
   {
-    code: "FAML-1192-AC88",
+    code: "F4V7N1",
     packageId: "pkg-family",
     status: "active",
     activationTime: formatOffsetDate(-120), // 5 days ago
@@ -135,7 +134,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   },
   // Unused Vouchers (Available for Agents or online sales)
   {
-    code: "KUMI-8892-F91A",
+    code: "K9M3P7",
     packageId: "pkg-quick",
     status: "unused",
     activationTime: null,
@@ -146,7 +145,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-2)
   },
   {
-    code: "BUKE-4811-AAB4",
+    code: "B2A4W8",
     packageId: "pkg-3day",
     status: "unused",
     activationTime: null,
@@ -157,7 +156,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-1)
   },
   {
-    code: "MBAL-9011-CC73",
+    code: "M6X9Z2",
     packageId: "pkg-weeklyplus",
     status: "unused",
     activationTime: null,
@@ -168,7 +167,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-12)
   },
   {
-    code: "MONT-3392-DK21",
+    code: "N1P7R4",
     packageId: "pkg-monthly",
     status: "unused",
     activationTime: null,
@@ -180,7 +179,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
   },
   // Used & Expired Vouchers
   {
-    code: "EXPD-1200-88BC",
+    code: "E5X8P2",
     packageId: "pkg-quick",
     status: "expired",
     activationTime: formatOffsetDate(-24),
@@ -191,7 +190,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     createdTime: formatOffsetDate(-26)
   },
   {
-    code: "EXPD-991A-F5B0",
+    code: "E9Y3K4",
     packageId: "pkg-daily",
     status: "expired",
     activationTime: formatOffsetDate(-30),
@@ -207,7 +206,7 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
   {
     id: "sess-1",
     mac: "00:1A:2B:3C:4D:5E",
-    voucherCode: "TECA-842B-91KM",
+    voucherCode: "K3D8H9",
     speed: "5 Mbps",
     startedAt: formatOffsetDate(-3),
     durationMinutes: 180,
@@ -217,7 +216,7 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
   {
     id: "sess-2",
     mac: "54:E4:3A:90:BC:11",
-    voucherCode: "GULU-92BD-884A",
+    voucherCode: "G8Y2X5",
     speed: "5 Mbps",
     startedAt: formatOffsetDate(-48),
     durationMinutes: 2880,
@@ -227,7 +226,7 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
   {
     id: "sess-3",
     mac: "34:12:F1:C9:AA:00",
-    voucherCode: "FAML-1192-AC88",
+    voucherCode: "F4V7N1",
     speed: "10 Mbps",
     startedAt: formatOffsetDate(-20),
     durationMinutes: 1200,
@@ -242,7 +241,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0772123456",
     amountUGX: 1000,
     packageId: "pkg-daily",
-    voucherCode: "TECA-842B-91KM",
+    voucherCode: "K3D8H9",
     type: "online",
     status: "success",
     timestamp: formatOffsetDate(-5),
@@ -254,7 +253,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0788987654",
     amountUGX: 6000,
     packageId: "pkg-weekly",
-    voucherCode: "GULU-92BD-884A",
+    voucherCode: "G8Y2X5",
     type: "agent",
     status: "success",
     timestamp: formatOffsetDate(-50),
@@ -266,7 +265,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0701555444",
     amountUGX: 50000,
     packageId: "pkg-family",
-    voucherCode: "FAML-1192-AC88",
+    voucherCode: "F4V7N1",
     type: "agent",
     status: "success",
     timestamp: formatOffsetDate(-125),
@@ -278,7 +277,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0771239845",
     amountUGX: 20000,
     packageId: "pkg-monthly",
-    voucherCode: "MONT-3392-DK21",
+    voucherCode: "N1P7R4",
     type: "online",
     status: "success",
     timestamp: formatOffsetDate(-1),
@@ -290,7 +289,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0752111222",
     amountUGX: 500,
     packageId: "pkg-quick",
-    voucherCode: "EXPD-1200-88BC",
+    voucherCode: "E5X8P2",
     type: "agent",
     status: "success",
     timestamp: formatOffsetDate(-26),
@@ -303,7 +302,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0770111222",
     amountUGX: 250000,
     packageId: "pkg-family",
-    voucherCode: "JUNE-FAML-AAAA",
+    voucherCode: "JN6FMA",
     type: "agent",
     status: "success",
     timestamp: "2026-06-12T14:20:00.000Z",
@@ -315,7 +314,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0770111223",
     amountUGX: 150000,
     packageId: "pkg-monthly",
-    voucherCode: "JUNE-MONT-BBBB",
+    voucherCode: "JN6MNB",
     type: "agent",
     status: "success",
     timestamp: "2026-06-18T09:15:00.000Z",
@@ -327,7 +326,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     phone: "0770111224",
     amountUGX: 200000,
     packageId: "pkg-monthly",
-    voucherCode: "JUNE-MONT-CCCC",
+    voucherCode: "JN6MNC",
     type: "agent",
     status: "success",
     timestamp: "2026-06-22T11:45:00.000Z",
@@ -404,7 +403,7 @@ export const INITIAL_LOGS: AuditLog[] = [
     actor: "Moses Okello (agent-1)",
     role: "Agent",
     action: "Voucher Created",
-    details: "Generated physical voucher BUKE-4811-AAB4 (3-Day plan) via agent dashboard.",
+    details: "Generated physical voucher B2A4W8 (3-Day plan) via agent dashboard.",
     ip: "10.150.12.3"
   },
   {
@@ -413,7 +412,7 @@ export const INITIAL_LOGS: AuditLog[] = [
     actor: "System API Gateway",
     role: "System",
     action: "Online Payment Webhook",
-    details: "MTN Mobile Money webhook received for txn-1001. Generated voucher TECA-842B-91KM.",
+    details: "MTN Mobile Money webhook received for txn-1001. Generated voucher K3D8H9.",
     ip: "196.201.200.42"
   },
   {
@@ -459,7 +458,7 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
     id: "ad-mtn",
     brand: "MTN Uganda",
     title: "MoMoPay - Fast, Secure, and Cashless Payments",
-    description: "Pay for your Techaus internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
+    description: "Pay for your TBS Connect internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
     imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
     ctaText: "Explore MTN MoMo",
     tagline: "Everywhere You Go",
@@ -472,7 +471,7 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
     id: "ad-airtel",
     brand: "Airtel Uganda",
     title: "Airtel Money - Secure Smart Cash Transfers",
-    description: "Send money across Uganda and East Africa with ease. Pay your bills, utilities, and buy Techaus internet packages instantly using Airtel Money. Zero fees on top-up transfers!",
+    description: "Send money across Uganda and East Africa with ease. Pay your bills, utilities, and buy TBS Connect internet packages instantly using Airtel Money. Zero fees on top-up transfers!",
     imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=800&q=80",
     ctaText: "Explore Airtel Money",
     tagline: "The Smartphone Network",
@@ -482,10 +481,10 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
     active: true
   },
   {
-    id: "ad-techaus",
-    brand: "Techaus Fiber",
-    title: "Techaus Fiber Pro - Superfast Home & Office Internet",
-    description: "Are you tired of data bundles? Upgrade to a dedicated Techaus Fiber line for your residence or business starting at just 150,000 UGX/month. Unlimited downloads, 99.9% uptime!",
+    id: "ad-tbs",
+    brand: "TBS Fiber",
+    title: "TBS Fiber Pro - Superfast Home & Office Internet",
+    description: "Are you tired of data bundles? Upgrade to a dedicated TBS Fiber line for your residence or business starting at just 150,000 UGX/month. Unlimited downloads, 99.9% uptime!",
     imageUrl: "https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&w=800&q=80",
     ctaText: "Order Home Fiber",
     tagline: "Unleash Gigaspeed Broadband",
@@ -496,7 +495,7 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
   },
   {
     id: "ad-coop",
-    brand: "Techaus Reseller",
+    brand: "TBS Reseller",
     title: "Earn Extra Cash - Become a Hotspot Reseller Agent!",
     description: "Do you run a shop, salon, or retail stand near our hotspot zones? Apply to become a Reseller Agent, purchase wallet credit, sell high-speed vouchers, and earn up to 15% instant commission!",
     imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80",

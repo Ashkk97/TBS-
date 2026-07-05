@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { AppState, generateVoucherCode } from '../data';
 import { Package, Voucher, AdTrialClaim, SponsorAd } from '../types';
-import techausLogo from '../assets/images/techaus_logo_1783070233348.jpg';
+import { TBSLogo } from './TBSLogo';
 
 // Individual theme styling mapping for each package
 export const getPackageStyle = (pkgId: string) => {
@@ -383,7 +383,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     state.sessions.push(newSession);
     state.addLog('System', 'Client Portal', 'Voucher Connected', `Device ${state.clientMAC} connected successfully using voucher ${code} (${pkg.name})`);
     
-    setSuccessMessage(`Success! Connected to Techaus high-speed internet via ${pkg.name}.`);
+    setSuccessMessage(`Success! Connected to TBS Connect high-speed internet via ${pkg.name}.`);
     setErrorMessage(null);
     setVoucherCodeInput('');
     
@@ -794,7 +794,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   const faqs = [
     {
       q: "Where can I buy physical vouchers?",
-      a: "You can buy physical scratch cards from any authorized Techaus Connect retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, and Arua. Look for our navy and teal banners!"
+      a: "You can buy physical scratch cards from any authorized TBS Connect retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, and Arua. Look for our navy and teal banners!"
     },
     {
       q: "How does the device binding work?",
@@ -802,41 +802,29 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     },
     {
       q: "Can I use the internet on my Smart TV or PlayStation?",
-      a: "Yes! Connect your Smart TV/console to the Techaus Wi-Fi network, copy its MAC address from its network settings, and register it here using the 'Smart TV Registration' form below."
+      a: "Yes! Connect your Smart TV/console to the TBS Connect Wi-Fi network, copy its MAC address from its network settings, and register it here using the 'Smart TV Registration' form below."
     },
     {
       q: "How can I check my remaining session time?",
-      a: "As long as you are connected to Techaus Wi-Fi, visiting this portal will automatically display your session status, remaining time, and data usage statistics."
+      a: "As long as you are connected to TBS Connect Wi-Fi, visiting this portal will automatically display your session status, remaining time, and data usage statistics."
     }
   ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden">
-      {/* Subtle Background Logo Watermark */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-[0.03] bg-no-repeat bg-center bg-contain" 
-        style={{ backgroundImage: `url(${techausLogo})` }}
-      />
+      {/* Modern Radiant Ambient Glow Background */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
       
       {/* 1. Header & Live Connection Bar */}
       <header className="sticky top-0 z-40 backdrop-blur-md bg-navy-800/90 border-b border-navy-700 shadow-md">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 bg-slate-900 border border-navy-700 rounded-lg overflow-hidden flex items-center justify-center p-0.5 shadow-lg">
-              <img src={techausLogo} alt="Techaus Logo" className="h-full w-full object-cover rounded" referrerPolicy="no-referrer" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold font-display tracking-tight text-white flex items-center gap-1.5">
-                Techaus <span className="text-teal-400">Connect</span>
-              </h1>
-              <p className="text-[10px] text-slate-300 font-medium hidden sm:block">Internet that works when you need it.</p>
-            </div>
-          </div>
+          <TBSLogo />
 
           <div className="flex items-center gap-2">
             <a 
-              href="/techaus-connect-wisp.zip"
-              download="techaus-connect-wisp.zip"
+              href="/tbs-connect-wisp.zip"
+              download="tbs-connect-wisp.zip"
               className="px-3 py-1.5 bg-teal-500/10 hover:bg-teal-500/25 text-xs text-teal-400 font-bold rounded-md border border-teal-500/30 transition flex items-center gap-1.5"
               id="source-code-download-btn"
             >
@@ -906,7 +894,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
               <h3 className="text-lg font-bold text-white mb-2">Your Free Trial Has Ended!</h3>
               <p className="text-slate-300 text-sm mb-4">
-                Thank you for trying Techaus Connect. To keep browsing without interruption, please purchase one of our affordable high-speed packages below.
+                Thank you for trying TBS Connect. To keep browsing without interruption, please purchase one of our affordable high-speed packages below.
               </p>
               <button 
                 onClick={() => setTrialEndedAlert(false)}
@@ -1165,18 +1153,18 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
                   <h2 className="text-lg font-bold text-white font-display">Enter Your Voucher Code</h2>
                 </div>
                 <p className="text-xs text-slate-300 mb-4">
-                  If you bought a scratch card from an agent or purchased online, enter the 12-digit code below to start browsing.
+                  If you bought a scratch card from an agent or purchased online, enter the 6-character code below to start browsing.
                 </p>
 
                 <div className="space-y-3">
                   <div className="relative">
                     <input 
                       type="text" 
-                      placeholder="XXXX-XXXX-XXXX"
+                      placeholder="A1B2C3"
                       value={voucherCodeInput}
                       onChange={(e) => setVoucherCodeInput(e.target.value)}
                       className="w-full px-4 py-3.5 bg-slate-950 border border-navy-600 rounded-xl font-mono text-center text-lg text-white font-bold tracking-widest placeholder-slate-600 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
-                      maxLength={14}
+                      maxLength={6}
                       id="voucher-code-field"
                     />
                   </div>
@@ -1576,10 +1564,11 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Voucher Code</label>
               <input 
                 type="text" 
-                placeholder="XXXX-XXXX-XXXX"
+                placeholder="A1B2C3"
                 value={tvVoucher}
                 onChange={(e) => setTvVoucher(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-950 border border-navy-600 rounded-xl font-mono text-sm text-white focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400"
+                maxLength={6}
                 id="tv-voucher-input"
               />
             </div>
@@ -1652,7 +1641,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       <footer className="mt-auto bg-navy-900 border-t border-navy-700 py-6 text-xs text-slate-400">
         <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-center sm:text-left">
-            <p className="font-bold text-white mb-0.5">Techaus Connect Uganda Ltd</p>
+            <p className="font-bold text-white mb-0.5">TBS Connect Uganda Ltd</p>
             <p className="text-[10px]">Serving Bukedea, Kumi, Mbale, Lira, Gulu, and Arua.</p>
           </div>
 

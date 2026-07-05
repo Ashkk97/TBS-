@@ -59,7 +59,7 @@ import {
 } from 'recharts';
 import { AppState, generateVoucherCode } from '../data';
 import { Voucher, Package, Agent, ActiveSession, RouterSite, SponsorAd } from '../types';
-import techausLogo from '../assets/images/techaus_logo_1783070233348.jpg';
+import { TBSLogo } from './TBSLogo';
 
 interface DashboardViewProps {
   state: AppState;
@@ -125,10 +125,16 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
   // System Seed reset
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  // Remote AP configuration states
+  const [showAddApForm, setShowAddApForm] = useState(false);
+  const [newApName, setNewApName] = useState('');
+  const [newApLocation, setNewApLocation] = useState('');
+  const [newApNotification, setNewApNotification] = useState<string | null>(null);
+
   // MikroTik script generator states
   const [selectedSiteForScript, setSelectedSiteForScript] = useState('site-bukedea');
   const [hotspotInterface, setHotspotInterface] = useState('ether2-hotspot');
-  const [hotspotProfileName, setHotspotProfileName] = useState('Techaus_Hotspot');
+  const [hotspotProfileName, setHotspotProfileName] = useState('TBS_Hotspot');
 
   // Ad Management form state
   const [showAdCreateModal, setShowAdCreateModal] = useState(false);
@@ -145,7 +151,7 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
     impressions: 0,
     clicks: 0
   });
-  const [serverDnsName, setServerDnsName] = useState('techaus.connect');
+  const [serverDnsName, setServerDnsName] = useState('tbs.connect');
   const [copiedScript, setCopiedScript] = useState(false);
 
   // Agent Wallet Withdrawal States
@@ -743,6 +749,72 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
     }, 2000);
   };
 
+  // Remote AP Add handler
+  const handleAddAp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newApName.trim() || !newApLocation.trim()) {
+      setNewApNotification("Error: Please provide both Name and Location for the new AP.");
+      return;
+    }
+
+    // Generate automatic IP address assignment (e.g. 10.150.X.1)
+    let nextSubnet = 18; // Default fallback if no match
+    try {
+      const ipSubnets = state.sites
+        .map(s => s.ipAddress)
+        .filter((ip): ip is string => typeof ip === 'string' && ip.startsWith("10.150."))
+        .map(ip => {
+          const parts = ip.split('.');
+          return parseInt(parts[2], 10);
+        })
+        .filter(num => !isNaN(num));
+      
+      if (ipSubnets.length > 0) {
+        nextSubnet = Math.max(...ipSubnets) + 1;
+      }
+    } catch (err) {
+      console.error("Error computing next subnet IP:", err);
+    }
+
+    const assignedIp = `10.150.${nextSubnet}.1`;
+    const newApId = `site-${newApName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`;
+
+    const newAp: RouterSite = {
+      id: newApId,
+      name: newApName.trim(),
+      location: newApLocation.trim(),
+      status: 'online',
+      cpuUsage: 5 + Math.floor(Math.random() * 10),
+      ramUsage: 20 + Math.floor(Math.random() * 20),
+      activeUsers: 0,
+      latencyMs: 12 + Math.floor(Math.random() * 15),
+      ipAddress: assignedIp
+    };
+
+    // Add site to state and save
+    state.sites.push(newAp);
+    state.addLog(
+      'Super Admin', 
+      'Super Admin', 
+      'Remote AP Connected', 
+      `Remotely added new Access Point: "${newAp.name}" in ${newAp.location}. IP Address ${assignedIp} was automatically assigned.`
+    );
+
+    // Clear fields and show success
+    setNewApName('');
+    setNewApLocation('');
+    setNewApNotification(`Success! ${newAp.name} has been remotely provisioned. Automatically assigned IP: ${assignedIp}`);
+    
+    // Save state
+    state.save();
+    onStateUpdate();
+
+    // Reset notification after 6 seconds
+    setTimeout(() => {
+      setNewApNotification(null);
+    }, 6000);
+  };
+
   // Re-seed DB helper
   const handleResetSystem = () => {
     state.reset();
@@ -832,12 +904,12 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
   const handleMockExport = (format: 'CSV' | 'XLSX' | 'PDF') => {
     const link = document.createElement("a");
     const content = `============================================================
-TECHAUS SOLUTIONS LTD
+TBS SOLUTIONS LTD
 Plot 14, Kampala Road, Kampala, Uganda
-Tel: +256 772 900 801 | Email: billing@techaus.co.ug
-Web: www.techaus.co.ug
+Tel: +256 772 900 801 | Email: billing@tbs.co.ug
+Web: www.tbs.co.ug
 ------------------------------------------------------------
-TECHAUS CONNECT BILLING SYSTEM - EXPORT REPORT
+TBS CONNECT BILLING SYSTEM - EXPORT REPORT
 Generated: ${new Date().toLocaleString()}
 Format: ${format}
 ============================================================
@@ -851,7 +923,7 @@ TOTAL VOUCHERS: ${state.vouchers.length}
 `;
     const file = new Blob([content], { type: 'text/plain' });
     link.href = URL.createObjectURL(file);
-    link.download = `techaus_connect_report_${Date.now()}.${format.toLowerCase()}`;
+    link.download = `tbs_connect_report_${Date.now()}.${format.toLowerCase()}`;
     link.click();
   };
 
@@ -867,27 +939,17 @@ TOTAL VOUCHERS: ${state.vouchers.length}
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden">
-      {/* Subtle Background Logo Watermark */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-[0.03] bg-no-repeat bg-center bg-contain" 
-        style={{ backgroundImage: `url(${techausLogo})` }}
-      />
+      {/* Modern Radiant Ambient Glow Background */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
       
       {/* 1. Dashboard Top Header */}
       <header className="sticky top-0 z-40 bg-navy-800 border-b border-navy-700 shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-slate-900 border border-navy-700 rounded-lg overflow-hidden flex items-center justify-center p-0.5 shadow-lg">
-              <img src={techausLogo} alt="Techaus Logo" className="h-full w-full object-cover rounded" referrerPolicy="no-referrer" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white font-display">Techaus TBS</h1>
-                <span className="px-2 py-0.5 text-[10px] bg-teal-500/20 text-teal-300 font-bold rounded-full border border-teal-500/30">Admin Central</span>
-              </div>
-              <p className="text-[10px] text-slate-400">Uganda WISP Management Node</p>
-            </div>
+            <TBSLogo />
+            <span className="px-2 py-0.5 text-[10px] bg-teal-500/20 text-teal-300 font-bold rounded-full border border-teal-500/30">Admin Central</span>
           </div>
 
           {/* Role Switching Control (For interactive demo and security review) */}
@@ -910,8 +972,8 @@ TOTAL VOUCHERS: ${state.vouchers.length}
 
           <div className="flex items-center gap-2">
             <a 
-              href="/techaus-connect-wisp.zip"
-              download="techaus-connect-wisp.zip"
+              href="/tbs-connect-wisp.zip"
+              download="tbs-connect-wisp.zip"
               className="px-3.5 py-1.5 bg-teal-500/10 hover:bg-teal-500/25 text-xs text-teal-400 font-bold rounded-lg border border-teal-500/30 transition flex items-center gap-1.5"
               id="dashboard-source-code-download-btn"
             >
@@ -2162,7 +2224,7 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                             <div className="bg-slate-950 p-3.5 rounded-xl text-center space-y-1 text-xs border border-navy-850">
                               <p className="text-slate-400">Total Purchase Authorization Request</p>
                               <p className="text-lg font-mono font-black text-white">{agentBulkAllocation.totalCostUGX.toLocaleString()} UGX</p>
-                              <p className="text-[10px] text-slate-500 mt-1">Recipient: <span className="text-slate-300">Techaus Solutions Bulk Stock</span></p>
+                              <p className="text-[10px] text-slate-500 mt-1">Recipient: <span className="text-slate-300">TBS Solutions Bulk Stock</span></p>
                               <p className="text-[10px] text-slate-500">Phone Account: <span className="text-slate-300 font-mono">{agentBulkPaymentPhone}</span></p>
                             </div>
 
@@ -2344,12 +2406,10 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                           <div className="absolute top-1/2 -right-3 w-6 h-6 bg-navy-900 rounded-full" />
 
                           <div className="text-center pb-4 border-b-2 border-dashed border-slate-200 flex flex-col items-center">
-                            <div className="h-12 w-12 bg-slate-100 rounded-full overflow-hidden mb-2 p-1 border border-slate-200 flex items-center justify-center shadow-sm">
-                              <img src={techausLogo} alt="Techaus Logo" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
-                            </div>
-                            <h3 className="text-base font-bold tracking-tight uppercase text-slate-800">Techaus Solutions Ltd</h3>
+                            <TBSLogo isLightBg={true} textColor="text-slate-900" iconSize={36} className="mb-2" />
+                            <h3 className="text-base font-bold tracking-tight uppercase text-slate-800">TBS Billing Solutions</h3>
                             <p className="text-[9px] text-slate-500 font-semibold font-display">Internet that works when you need it.</p>
-                            <p className="text-[8px] text-slate-400 font-mono mt-0.5">Plot 14, Kampala Road, Uganda | support@techaus.co.ug</p>
+                            <p className="text-[8px] text-slate-400 font-mono mt-0.5">Plot 14, Kampala Road, Uganda | support@tbs.co.ug</p>
                           </div>
 
                           {(() => {
@@ -2425,7 +2485,7 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                         >
                           <div className="text-center pb-4 border-b-2 border-dashed border-slate-200 shrink-0">
                             <span className="px-2.5 py-0.5 bg-teal-100 text-teal-800 font-bold text-[9px] rounded-full uppercase tracking-wider inline-block mb-1.5">Stocking Invoice</span>
-                            <h3 className="text-base font-bold tracking-tight uppercase">Techaus Bulk Stock Sheet</h3>
+                            <h3 className="text-base font-bold tracking-tight uppercase">TBS Bulk Stock Sheet</h3>
                             <p className="text-[9px] text-slate-500 font-semibold font-display">Generated {agentBulkSuccessVouchers.length} physical vouchers successfully!</p>
                           </div>
 
@@ -2502,12 +2562,12 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                                 type="button"
                                 onClick={() => {
                                   const listStr = `============================================================
-TECHAUS SOLUTIONS LTD
+TBS SOLUTIONS LTD
 Plot 14, Kampala Road, Kampala, Uganda
-Tel: +256 772 900 801 | Email: billing@techaus.co.ug
-Web: www.techaus.co.ug
+Tel: +256 772 900 801 | Email: billing@tbs.co.ug
+Web: www.tbs.co.ug
 ------------------------------------------------------------
-TECHAUS RESELLER STOCK SHEET
+TBS RESELLER STOCK SHEET
 Batch Date: ${new Date().toLocaleDateString()}
 Reseller: ${activeAgent.name} (${activeAgent.location})
 ============================================================
@@ -2901,10 +2961,99 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
           {/* E. MIKROTIK STATUS TAB */}
           {activeTab === 'health' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-white font-display">RouterOS Hotspot Status</h2>
-                <p className="text-xs text-slate-400">MikroTik Router API endpoints connection health and system health</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-950 p-5 rounded-xl border border-navy-700">
+                <div>
+                  <h2 className="text-xl font-bold text-white font-display flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-teal-400" />
+                    RouterOS Hotspot Status & APs
+                  </h2>
+                  <p className="text-xs text-slate-400">Remote MikroTik Router connection status, auto IP assignment, and AP fleet provisioning</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddApForm(!showAddApForm)}
+                  className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 text-xs font-black rounded-lg shadow-lg hover:shadow-teal-500/20 transition-all flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Remote Provision AP
+                </button>
               </div>
+
+              {/* REMOTE AP PROVISIONING FORM */}
+              {showAddApForm && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-slate-950 p-6 rounded-xl border border-teal-500/30 shadow-xl space-y-4"
+                >
+                  <div className="pb-3 border-b border-navy-800 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-teal-400 font-display flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Provision New Access Point (AP) Remotely
+                    </h3>
+                    <span className="text-[10px] text-slate-500 font-mono">Dynamic IP Assignment Enabled</span>
+                  </div>
+
+                  {newApNotification && (
+                    <div className={`p-3 rounded text-xs font-bold ${newApNotification.startsWith('Error') ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400' : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'}`}>
+                      {newApNotification}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAddAp} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Access Point Name</label>
+                      <input 
+                        type="text" 
+                        value={newApName}
+                        onChange={(e) => setNewApName(e.target.value)}
+                        placeholder="e.g. Soroti Main Tower AP"
+                        className="w-full px-3 py-2 bg-slate-900 border border-navy-600 rounded text-slate-300 focus:outline-none focus:border-teal-400"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AP Geographic Location</label>
+                      <input 
+                        type="text" 
+                        value={newApLocation}
+                        onChange={(e) => setNewApLocation(e.target.value)}
+                        placeholder="e.g. Soroti"
+                        className="w-full px-3 py-2 bg-slate-900 border border-navy-600 rounded text-slate-300 focus:outline-none focus:border-teal-400"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex items-center justify-between p-3 bg-teal-950/20 border border-teal-500/10 rounded-lg text-slate-300">
+                      <div className="space-y-0.5">
+                        <p className="font-bold text-teal-400">Automatic IP Assignment & DHCP Static Lease</p>
+                        <p className="text-[11px] text-slate-400">The TBS system automatically claims the next available IP address subnet block and generates a WireGuard tunnel profile for remote pairing.</p>
+                      </div>
+                      <div className="shrink-0 font-mono font-bold text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded border border-teal-500/20">
+                        AUTO-DHCP
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddApForm(false);
+                          setNewApNotification(null);
+                        }}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 font-bold rounded-lg transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 bg-teal-500 hover:bg-teal-600 text-navy-800 font-bold rounded-lg transition"
+                      >
+                        Remotely Connect & Provision
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {state.sites.map((site) => (
@@ -2914,10 +3063,15 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                         <h3 className="text-xs font-bold text-white uppercase tracking-wider">{site.name}</h3>
                         <span className={`h-2.5 w-2.5 rounded-full ${site.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                       </div>
-                      <p className="text-xs text-slate-400">Location: {site.location}</p>
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        <p className="text-slate-400">Location: {site.location}</p>
+                        {site.ipAddress && (
+                          <p className="text-[10px] text-teal-400 font-mono">Static IP: <span className="font-bold text-slate-200">{site.ipAddress}</span></p>
+                        )}
+                      </div>
                       
                       {site.status === 'online' && (
-                        <div className="flex gap-4 text-[10px] text-slate-500 font-mono">
+                        <div className="flex gap-4 text-[10px] text-slate-500 font-mono pt-1">
                           <span>CPU: {site.cpuUsage}%</span>
                           <span>RAM: {site.ramUsage}%</span>
                           <span>Active: {site.activeUsers} leases</span>
@@ -2997,7 +3151,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                       type="text" 
                       value={hotspotProfileName}
                       onChange={(e) => setHotspotProfileName(e.target.value)}
-                      placeholder="Techaus_Hotspot"
+                      placeholder="TBS_Hotspot"
                       className="w-full px-3 py-2 bg-slate-900 border border-navy-600 rounded text-slate-300 focus:outline-none focus:border-teal-400 font-mono"
                     />
                   </div>
@@ -3008,7 +3162,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                       type="text" 
                       value={serverDnsName}
                       onChange={(e) => setServerDnsName(e.target.value)}
-                      placeholder="techaus.connect"
+                      placeholder="tbs.connect"
                       className="w-full px-3 py-2 bg-slate-900 border border-navy-600 rounded text-slate-300 focus:outline-none focus:border-teal-400 font-mono"
                     />
                   </div>
@@ -3038,23 +3192,24 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                     className="p-4 bg-slate-950 border border-navy-800 rounded-xl font-mono text-[11px] text-teal-300 overflow-x-auto max-h-72 select-all whitespace-pre leading-relaxed"
                   >
 {`# =========================================================
-# TECHAUS CONNECT MIKROTIK HOTSPOT SETUP
+# TBS CONNECT MIKROTIK HOTSPOT SETUP
 # Target Router Site: ${state.sites.find(s => s.id === selectedSiteForScript)?.name || 'Bukedea Main Tower'}
 # Location: ${state.sites.find(s => s.id === selectedSiteForScript)?.location || 'Bukedea'}
+# Assigned Tunnel IP: ${state.sites.find(s => s.id === selectedSiteForScript)?.ipAddress || '10.150.12.1'}
 # Generated: ${new Date().toLocaleDateString()}
 # Compatibility: RouterOS v6.x / v7.x
 # =========================================================
 
 # 1. Create a Hotspot User Profile with speed limits
 /ip hotspot user profile
-add name="Techaus_Standard" idle-timeout=none keepalive-timeout=2m shared-users=1
+add name="TBS_Standard" idle-timeout=none keepalive-timeout=2m shared-users=1
 
 # 2. Add Hotspot Server Profile pointing to our captive portal
 /ip hotspot profile
-add name="${hotspotProfileName}_Profile" hotspot-address=10.5.50.1 dns-name="${serverDnsName}" \\
+add name="${hotspotProfileName}_Profile" hotspot-address=${state.sites.find(s => s.id === selectedSiteForScript)?.ipAddress || '10.150.12.1'} dns-name="${serverDnsName}" \\
     login-by=http-chap,http-pap,cookie \\
     html-directory=flash/hotspot \\
-    login-page-url="https://techaus-connect-wisp.run.app"
+    login-page-url="https://tbs-connect-wisp.run.app"
 
 # 3. Create the Hotspot server on specified interface
 /ip hotspot
@@ -3068,14 +3223,14 @@ add action=allow comment="Allow Pesapal Secure Checkout" dst-host="api.pesapal.c
 add action=allow comment="Allow MTN Uganda MoMo Webhooks" dst-host="*.mtn.co.ug"
 add action=allow comment="Allow Airtel Money API Core" dst-host="*.airtel.co.ug"
 add action=allow comment="Allow Airtel Money Web Portals" dst-host="*.airtelmoney.com"
-add action=allow comment="Allow Techaus Connect Domain" dst-host="*techaus*"
+add action=allow comment="Allow TBS Connect Domain" dst-host="*tbs*"
 
 # 5. Configure API Services for Remote Voucher Validation (RADIUS fallback)
 /ip service
 set api port=8728 disabled=no
 set api-ssl port=8729 disabled=no certificate=none
 
-/log info "Techaus Connect WISP hotspot profile setup successfully applied!"`}
+/log info "TBS Connect WISP hotspot profile setup successfully applied!"`}
                   </pre>
                 </div>
               </div>
@@ -3702,7 +3857,7 @@ set api-ssl port=8729 disabled=no certificate=none
                   >
                     <option value="from-yellow-400 to-amber-500">MTN Gold (Yellow to Amber)</option>
                     <option value="from-red-500 to-rose-600">Airtel Ruby (Red to Rose)</option>
-                    <option value="from-teal-500 to-cyan-600">Techaus Cyan (Teal to Cyan)</option>
+                    <option value="from-teal-500 to-cyan-600">TBS Cyan (Teal to Cyan)</option>
                     <option value="from-purple-500 to-indigo-600">Royal Reseller (Purple to Indigo)</option>
                     <option value="from-emerald-500 to-teal-600">Pure Green (Emerald to Teal)</option>
                     <option value="from-slate-600 to-slate-800">Classic Charcoal (Slate to Dark)</option>
