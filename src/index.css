@@ -46,3 +46,96 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Orange & White Premium Theme Variables Scoping */
+.orange-white-theme {
+  /* Redefining background/border variables to a premium warm-white/cream/orange aesthetic */
+  --color-slate-950: #ffffff;      /* Page overall background */
+  --color-slate-900: #fffcf9;      /* Primary card/container background */
+  --color-slate-850: #fff8f2;      /* Secondary light warm gray-orange bg */
+  --color-slate-800: #ffeedc;      /* Soft orange/cream borders */
+  --color-slate-700: #ffd8b8;      /* Borders / dividers */
+  --color-slate-600: #ffc494;      /* Focus/active borders */
+  
+  --color-navy-950: #ffffff;
+  --color-navy-900: #fffbf7;
+  --color-navy-800: #fff4e8;
+  --color-navy-700: #ffdcb8;
+  --color-navy-600: #ffbe8a;
+
+  /* Redefine brand teal to premium vibrant orange */
+  --color-teal-500: #f97316;      /* Vibrant Orange */
+  --color-teal-600: #ea580c;      /* Deep Orange */
+  --color-teal-400: #ff9248;      /* Bright Soft Orange */
+  --color-teal-300: #f97316;
+  --color-teal-200: #ffbc85;
+  --color-teal-100: #ffedd5;
+
+  /* Redefine cyan colors */
+  --color-cyan-500: #f97316;
+  --color-cyan-600: #ea580c;
+  --color-cyan-400: #ffa15c;
+
+  background-color: #fffaf5;      /* Base page body */
+  color: #2e1d11;                 /* Base dark warm text */
+}
+
+/* Scoped text-color conversions to ensure legible contrast on the white/orange theme */
+.orange-white-theme .text-white {
+  color: #271406 !important;
+}
+
+.orange-white-theme .text-slate-100 {
+  color: #1a0a01 !important;
+}
+
+.orange-white-theme .text-slate-200 {
+  color: #271406 !important;
+}
+
+.orange-white-theme .text-slate-300 {
+  color: #3d220f !important;
+}
+
+.orange-white-theme .text-slate-400 {
+  color: #5f422c !important;
+}
+
+/* Ensure vibrant orange is preserved for highlight classes */
+.orange-white-theme .text-teal-400,
+.orange-white-theme .text-teal-300 {
+  color: #f97316 !important;
+}
+
+/* For solid orange/green/dark buttons or badges, preserve white text */
+.orange-white-theme .bg-teal-500 .text-white,
+.orange-white-theme button.bg-teal-500,
+.orange-white-theme button.bg-teal-600,
+.orange-white-theme button.bg-emerald-500,
+.orange-white-theme button.bg-emerald-600,
+.orange-white-theme button.bg-red-500,
+.orange-white-theme button.bg-slate-900,
+.orange-white-theme button.bg-slate-950,
+.orange-white-theme .bg-gradient-to-r.from-yellow-400,
+.orange-white-theme .bg-gradient-to-r.from-teal-400,
+.orange-white-theme .bg-gradient-to-r.from-orange-500,
+.orange-white-theme .bg-gradient-to-r.from-emerald-400,
+.orange-white-theme .bg-emerald-950 .text-emerald-400,
+.orange-white-theme .badge-white-text,
+.orange-white-theme button.bg-slate-800 {
+  color: #ffffff !important;
+}
+
+/* Scrollbar override for orange theme */
+.orange-white-theme ::-webkit-scrollbar-track {
+  background: #fffaf5;
+}
+
+.orange-white-theme ::-webkit-scrollbar-thumb {
+  background: #ffd8b8;
+  border: 1px solid #fffaf5;
+}
+
+.orange-white-theme ::-webkit-scrollbar-thumb:hover {
+  background: #f97316;
+}
+

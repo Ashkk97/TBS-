@@ -134,7 +134,7 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
   // MikroTik script generator states
   const [selectedSiteForScript, setSelectedSiteForScript] = useState('site-bukedea');
   const [hotspotInterface, setHotspotInterface] = useState('ether2-hotspot');
-  const [hotspotProfileName, setHotspotProfileName] = useState('TBS_Hotspot');
+  const [hotspotProfileName, setHotspotProfileName] = useState('WIFI_ZONE_Hotspot');
 
   // Ad Management form state
   const [showAdCreateModal, setShowAdCreateModal] = useState(false);
@@ -845,7 +845,8 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
     return state.sessions.filter(s => {
       return s.mac.toLowerCase().includes(sessionSearch.toLowerCase()) || 
              s.voucherCode.toLowerCase().includes(sessionSearch.toLowerCase()) ||
-             s.ipAddress.includes(sessionSearch);
+             s.ipAddress.includes(sessionSearch) ||
+             (s.deviceModel && s.deviceModel.toLowerCase().includes(sessionSearch.toLowerCase()));
     });
   }, [state.sessions, sessionSearch]);
 
@@ -904,12 +905,12 @@ export default function DashboardView({ state, onStateUpdate, onGoToPortal }: Da
   const handleMockExport = (format: 'CSV' | 'XLSX' | 'PDF') => {
     const link = document.createElement("a");
     const content = `============================================================
-TBS SOLUTIONS LTD
+WIFI ZONE LTD
 Plot 14, Kampala Road, Kampala, Uganda
-Tel: +256 772 900 801 | Email: billing@tbs.co.ug
-Web: www.tbs.co.ug
+Tel: +256 772 900 801 | Email: billing@wifizone.co.ug
+Web: www.wifizone.co.ug
 ------------------------------------------------------------
-TBS CONNECT BILLING SYSTEM - EXPORT REPORT
+WIFI ZONE BILLING SYSTEM - EXPORT REPORT
 Generated: ${new Date().toLocaleString()}
 Format: ${format}
 ============================================================
@@ -2224,7 +2225,7 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                             <div className="bg-slate-950 p-3.5 rounded-xl text-center space-y-1 text-xs border border-navy-850">
                               <p className="text-slate-400">Total Purchase Authorization Request</p>
                               <p className="text-lg font-mono font-black text-white">{agentBulkAllocation.totalCostUGX.toLocaleString()} UGX</p>
-                              <p className="text-[10px] text-slate-500 mt-1">Recipient: <span className="text-slate-300">TBS Solutions Bulk Stock</span></p>
+                              <p className="text-[10px] text-slate-500 mt-1">Recipient: <span className="text-slate-300">WIFI ZONE Bulk Stock</span></p>
                               <p className="text-[10px] text-slate-500">Phone Account: <span className="text-slate-300 font-mono">{agentBulkPaymentPhone}</span></p>
                             </div>
 
@@ -2407,9 +2408,9 @@ TOTAL VOUCHERS: ${state.vouchers.length}
 
                           <div className="text-center pb-4 border-b-2 border-dashed border-slate-200 flex flex-col items-center">
                             <TBSLogo isLightBg={true} textColor="text-slate-900" iconSize={36} className="mb-2" />
-                            <h3 className="text-base font-bold tracking-tight uppercase text-slate-800">TBS Billing Solutions</h3>
+                            <h3 className="text-base font-bold tracking-tight uppercase text-slate-800">WIFI ZONE</h3>
                             <p className="text-[9px] text-slate-500 font-semibold font-display">Internet that works when you need it.</p>
-                            <p className="text-[8px] text-slate-400 font-mono mt-0.5">Plot 14, Kampala Road, Uganda | support@tbs.co.ug</p>
+                            <p className="text-[8px] text-slate-400 font-mono mt-0.5">Plot 14, Kampala Road, Uganda | support@wifizone.co.ug</p>
                           </div>
 
                           {(() => {
@@ -2485,7 +2486,7 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                         >
                           <div className="text-center pb-4 border-b-2 border-dashed border-slate-200 shrink-0">
                             <span className="px-2.5 py-0.5 bg-teal-100 text-teal-800 font-bold text-[9px] rounded-full uppercase tracking-wider inline-block mb-1.5">Stocking Invoice</span>
-                            <h3 className="text-base font-bold tracking-tight uppercase">TBS Bulk Stock Sheet</h3>
+                            <h3 className="text-base font-bold tracking-tight uppercase">WIFI ZONE Bulk Stock Sheet</h3>
                             <p className="text-[9px] text-slate-500 font-semibold font-display">Generated {agentBulkSuccessVouchers.length} physical vouchers successfully!</p>
                           </div>
 
@@ -2562,12 +2563,12 @@ TOTAL VOUCHERS: ${state.vouchers.length}
                                 type="button"
                                 onClick={() => {
                                   const listStr = `============================================================
-TBS SOLUTIONS LTD
+WIFI ZONE LTD
 Plot 14, Kampala Road, Kampala, Uganda
-Tel: +256 772 900 801 | Email: billing@tbs.co.ug
-Web: www.tbs.co.ug
+Tel: +256 772 900 801 | Email: billing@wifizone.co.ug
+Web: www.wifizone.co.ug
 ------------------------------------------------------------
-TBS RESELLER STOCK SHEET
+WIFI ZONE RESELLER STOCK SHEET
 Batch Date: ${new Date().toLocaleDateString()}
 Reseller: ${activeAgent.name} (${activeAgent.location})
 ============================================================
@@ -2803,10 +2804,10 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-900 text-slate-400 font-semibold border-b border-navy-700">
-                      <th className="p-3">Client MAC Address</th>
+                      <th className="p-3">Device / MAC Address</th>
                       <th className="p-3">DHCP IP Lease</th>
                       <th className="p-3">Voucher Used</th>
-                      <th className="p-3">Speed Profile</th>
+                      <th className="p-3">Status / Speed</th>
                       <th className="p-3">Duration Connected</th>
                       <th className="p-3">Simulated Data</th>
                       <th className="p-3 text-right">Actions</th>
@@ -2820,16 +2821,47 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                     ) : (
                       filteredSessions.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-900/40 transition">
-                          <td className="p-3 font-mono font-bold text-white">{s.mac}</td>
-                          <td className="p-3 font-mono text-slate-300">{s.ipAddress}</td>
-                          <td className="p-3 font-mono text-teal-400 font-semibold">{s.voucherCode}</td>
                           <td className="p-3">
-                            <span className="px-1.5 py-0.5 bg-slate-900 text-slate-400 font-mono rounded text-[10px] font-bold border border-navy-700">
-                              {s.speed}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                <Smartphone className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+                                {s.deviceModel || 'Unknown Device'}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400 font-medium select-all">{s.mac}</span>
+                            </div>
+                          </td>
+                          <td className="p-3 font-mono text-slate-300">{s.ipAddress}</td>
+                          <td className="p-3 font-mono">
+                            {s.status === 'pre-auth' ? (
+                              <span className="text-slate-500 italic">No Coupon Linked</span>
+                            ) : (
+                              <span className="text-teal-400 font-bold">{s.voucherCode}</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex flex-col gap-1">
+                              {s.status === 'pre-auth' ? (
+                                <span className="inline-flex items-center w-max px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 font-mono rounded text-[9px] font-extrabold border border-yellow-500/20 uppercase tracking-wider">
+                                  Pre-Auth Lease
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center w-max px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 font-mono rounded text-[9px] font-extrabold border border-emerald-500/20 uppercase tracking-wider">
+                                  Authorized
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {s.speed}
+                              </span>
+                            </div>
                           </td>
                           <td className="p-3 text-slate-300 font-medium">
-                            {s.voucherCode === "FREE-TRIAL-TEMP" ? 'Free Trial Loop' : 'Standard Plan clock'}
+                            {s.status === 'pre-auth' ? (
+                              <span className="text-slate-400 text-[10px]">Awaiting coupon/ads</span>
+                            ) : s.voucherCode === "FREE-TRIAL-TEMP" ? (
+                              'Free Trial Loop'
+                            ) : (
+                              'Standard Plan clock'
+                            )}
                           </td>
                           <td className="p-3 font-mono text-slate-300">{(s.dataUsedMB / 1024).toFixed(2)} GB</td>
                           <td className="p-3 text-right">
@@ -3026,7 +3058,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                     <div className="md:col-span-2 flex items-center justify-between p-3 bg-teal-950/20 border border-teal-500/10 rounded-lg text-slate-300">
                       <div className="space-y-0.5">
                         <p className="font-bold text-teal-400">Automatic IP Assignment & DHCP Static Lease</p>
-                        <p className="text-[11px] text-slate-400">The TBS system automatically claims the next available IP address subnet block and generates a WireGuard tunnel profile for remote pairing.</p>
+                        <p className="text-[11px] text-slate-400">The WIFI ZONE system automatically claims the next available IP address subnet block and generates a WireGuard tunnel profile for remote pairing.</p>
                       </div>
                       <div className="shrink-0 font-mono font-bold text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded border border-teal-500/20">
                         AUTO-DHCP
@@ -3092,7 +3124,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
 
               {/* System Health Status */}
               <div className="bg-slate-950 p-5 rounded-xl border border-navy-700 space-y-4">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-display">TBS Server Status</h3>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-display">WIFI ZONE Server Status</h3>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
                   <div className="p-3 bg-slate-900 rounded border border-navy-800">
@@ -3151,7 +3183,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                       type="text" 
                       value={hotspotProfileName}
                       onChange={(e) => setHotspotProfileName(e.target.value)}
-                      placeholder="TBS_Hotspot"
+                      placeholder="WIFI_ZONE_Hotspot"
                       className="w-full px-3 py-2 bg-slate-900 border border-navy-600 rounded text-slate-300 focus:outline-none focus:border-teal-400 font-mono"
                     />
                   </div>
@@ -3192,7 +3224,7 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
                     className="p-4 bg-slate-950 border border-navy-800 rounded-xl font-mono text-[11px] text-teal-300 overflow-x-auto max-h-72 select-all whitespace-pre leading-relaxed"
                   >
 {`# =========================================================
-# TBS CONNECT MIKROTIK HOTSPOT SETUP
+# WIFI ZONE MIKROTIK HOTSPOT SETUP
 # Target Router Site: ${state.sites.find(s => s.id === selectedSiteForScript)?.name || 'Bukedea Main Tower'}
 # Location: ${state.sites.find(s => s.id === selectedSiteForScript)?.location || 'Bukedea'}
 # Assigned Tunnel IP: ${state.sites.find(s => s.id === selectedSiteForScript)?.ipAddress || '10.150.12.1'}
@@ -3202,14 +3234,14 @@ Reseller: ${activeAgent.name} (${activeAgent.location})
 
 # 1. Create a Hotspot User Profile with speed limits
 /ip hotspot user profile
-add name="TBS_Standard" idle-timeout=none keepalive-timeout=2m shared-users=1
+add name="WIFI_ZONE_Standard" idle-timeout=none keepalive-timeout=2m shared-users=1
 
 # 2. Add Hotspot Server Profile pointing to our captive portal
 /ip hotspot profile
 add name="${hotspotProfileName}_Profile" hotspot-address=${state.sites.find(s => s.id === selectedSiteForScript)?.ipAddress || '10.150.12.1'} dns-name="${serverDnsName}" \\
     login-by=http-chap,http-pap,cookie \\
     html-directory=flash/hotspot \\
-    login-page-url="https://tbs-connect-wisp.run.app"
+    login-page-url="https://wifizone-captive.run.app"
 
 # 3. Create the Hotspot server on specified interface
 /ip hotspot
@@ -3223,14 +3255,14 @@ add action=allow comment="Allow Pesapal Secure Checkout" dst-host="api.pesapal.c
 add action=allow comment="Allow MTN Uganda MoMo Webhooks" dst-host="*.mtn.co.ug"
 add action=allow comment="Allow Airtel Money API Core" dst-host="*.airtel.co.ug"
 add action=allow comment="Allow Airtel Money Web Portals" dst-host="*.airtelmoney.com"
-add action=allow comment="Allow TBS Connect Domain" dst-host="*tbs*"
+add action=allow comment="Allow WIFI ZONE Domain" dst-host="*wifizone*"
 
 # 5. Configure API Services for Remote Voucher Validation (RADIUS fallback)
 /ip service
 set api port=8728 disabled=no
 set api-ssl port=8729 disabled=no certificate=none
 
-/log info "TBS Connect WISP hotspot profile setup successfully applied!"`}
+/log info "WIFI ZONE WISP hotspot profile setup successfully applied!"`}
                   </pre>
                 </div>
               </div>
@@ -3857,7 +3889,7 @@ set api-ssl port=8729 disabled=no certificate=none
                   >
                     <option value="from-yellow-400 to-amber-500">MTN Gold (Yellow to Amber)</option>
                     <option value="from-red-500 to-rose-600">Airtel Ruby (Red to Rose)</option>
-                    <option value="from-teal-500 to-cyan-600">TBS Cyan (Teal to Cyan)</option>
+                    <option value="from-orange-500 to-amber-600">Orange Burst (Orange to Amber)</option>
                     <option value="from-purple-500 to-indigo-600">Royal Reseller (Purple to Indigo)</option>
                     <option value="from-emerald-500 to-teal-600">Pure Green (Emerald to Teal)</option>
                     <option value="from-slate-600 to-slate-800">Classic Charcoal (Slate to Dark)</option>

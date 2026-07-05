@@ -28,7 +28,7 @@ export const TBSLogo: React.FC<TBSLogoProps> = ({
       >
         {/* Glow effect */}
         {!isLightBg && (
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-teal-500/20 to-cyan-500/20 opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-300 pointer-events-none" />
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-orange-500/20 to-amber-500/20 opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-300 pointer-events-none" />
         )}
         
         <svg 
@@ -40,13 +40,13 @@ export const TBSLogo: React.FC<TBSLogoProps> = ({
           {/* Definitions for Gradients */}
           <defs>
             <linearGradient id="tbsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#14b8a6" /> {/* Teal 500 */}
-              <stop offset="50%" stopColor="#06b6d4" /> {/* Cyan 500 */}
-              <stop offset="100%" stopColor="#3b82f6" /> {/* Blue 500 */}
+              <stop offset="0%" stopColor="#f97316" /> {/* Orange 500 */}
+              <stop offset="50%" stopColor="#f59e0b" /> {/* Amber 500 */}
+              <stop offset="100%" stopColor="#ea580c" /> {/* Orange 600 */}
             </linearGradient>
             <linearGradient id="tbsGradSoft" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+              <stop offset="0%" stopColor="#ffedd5" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#f97316" stopOpacity="0.1" />
             </linearGradient>
             <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="4" result="blur" />
@@ -104,19 +104,19 @@ export const TBSLogo: React.FC<TBSLogoProps> = ({
         </svg>
       </div>
 
-      {/* Typography: "TBS © 2026" */}
+      {/* Typography: "WIFI ZONE © 2026" */}
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-baseline gap-1.5">
             <span className={`text-xl font-extrabold tracking-tight font-display ${textColor}`}>
-              TBS
+              WIFI
             </span>
-            <span className={`text-[10px] font-semibold tracking-wider uppercase ${isLightBg ? 'text-slate-400' : 'text-teal-400'}`}>
-              Connect
+            <span className={`text-[10px] font-semibold tracking-wider uppercase ${isLightBg ? 'text-slate-500' : 'text-orange-500'}`}>
+              ZONE
             </span>
           </div>
           <span className={`text-[9px] font-mono font-bold tracking-widest ${isLightBg ? 'text-slate-500' : 'text-slate-400'}`}>
-            TBS © 2026
+            WIFI ZONE © 2026
           </span>
         </div>
       )}

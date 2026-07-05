@@ -21,7 +21,7 @@ export default function App() {
   }, [state]);
 
   return (
-    <div className="min-h-screen bg-slate-950 relative">
+    <div className="min-h-screen bg-slate-950 relative orange-white-theme">
       {isServerSyncing && (
         <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 bg-teal-500/10 border border-teal-500/20 text-[10px] text-teal-400 font-mono rounded-md z-50 animate-pulse">
           <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-ping" />

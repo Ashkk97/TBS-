@@ -69,6 +69,8 @@ export interface ActiveSession {
   durationMinutes: number;
   dataUsedMB: number;
   ipAddress: string;
+  deviceModel?: string;
+  status?: 'authorized' | 'pre-auth';
 }
 
 export interface RouterSite {

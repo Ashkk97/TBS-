@@ -211,7 +211,9 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
     startedAt: formatOffsetDate(-3),
     durationMinutes: 180,
     dataUsedMB: 1240,
-    ipAddress: "10.5.50.45"
+    ipAddress: "10.5.50.45",
+    deviceModel: "Samsung Galaxy A54",
+    status: "authorized"
   },
   {
     id: "sess-2",
@@ -221,7 +223,9 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
     startedAt: formatOffsetDate(-48),
     durationMinutes: 2880,
     dataUsedMB: 14500,
-    ipAddress: "10.5.50.12"
+    ipAddress: "10.5.50.12",
+    deviceModel: "Tecno Spark 10 Pro",
+    status: "authorized"
   },
   {
     id: "sess-3",
@@ -231,7 +235,33 @@ export const INITIAL_SESSIONS: ActiveSession[] = [
     startedAt: formatOffsetDate(-20),
     durationMinutes: 1200,
     dataUsedMB: 8400,
-    ipAddress: "10.5.60.101"
+    ipAddress: "10.5.60.101",
+    deviceModel: "iPhone 14 Pro",
+    status: "authorized"
+  },
+  {
+    id: "sess-pre1",
+    mac: "B0:19:C7:E2:4F:92",
+    voucherCode: "Pre-Auth (None)",
+    speed: "Blocked (Pre-Auth)",
+    startedAt: formatOffsetDate(-0.25), // 15 mins ago
+    durationMinutes: 15,
+    dataUsedMB: 1.2,
+    ipAddress: "10.5.50.99",
+    deviceModel: "Tecno Camon 20",
+    status: "pre-auth"
+  },
+  {
+    id: "sess-pre2",
+    mac: "A4:C3:F0:8A:2B:1D",
+    voucherCode: "Pre-Auth (None)",
+    speed: "Blocked (Pre-Auth)",
+    startedAt: formatOffsetDate(-0.5), // 30 mins ago
+    durationMinutes: 30,
+    dataUsedMB: 2.8,
+    ipAddress: "10.5.50.150",
+    deviceModel: "Infinix Hot 40",
+    status: "pre-auth"
   }
 ];
 
@@ -458,7 +488,7 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
     id: "ad-mtn",
     brand: "MTN Uganda",
     title: "MoMoPay - Fast, Secure, and Cashless Payments",
-    description: "Pay for your TBS Connect internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
+    description: "Pay for your WIFI ZONE internet packages, groceries, and bills with MTN MoMoPay. Just dial *165*3# or use the MyMTN app to enjoy zero transaction charges!",
     imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
     ctaText: "Explore MTN MoMo",
     tagline: "Everywhere You Go",
@@ -471,7 +501,7 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
     id: "ad-airtel",
     brand: "Airtel Uganda",
     title: "Airtel Money - Secure Smart Cash Transfers",
-    description: "Send money across Uganda and East Africa with ease. Pay your bills, utilities, and buy TBS Connect internet packages instantly using Airtel Money. Zero fees on top-up transfers!",
+    description: "Send money across Uganda and East Africa with ease. Pay your bills, utilities, and buy WIFI ZONE internet packages instantly using Airtel Money. Zero fees on top-up transfers!",
     imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1d704d3?auto=format&fit=crop&w=800&q=80",
     ctaText: "Explore Airtel Money",
     tagline: "The Smartphone Network",
@@ -482,26 +512,26 @@ export const INITIAL_SPONSOR_ADS: SponsorAd[] = [
   },
   {
     id: "ad-tbs",
-    brand: "TBS Fiber",
-    title: "TBS Fiber Pro - Superfast Home & Office Internet",
-    description: "Are you tired of data bundles? Upgrade to a dedicated TBS Fiber line for your residence or business starting at just 150,000 UGX/month. Unlimited downloads, 99.9% uptime!",
+    brand: "WIFI ZONE Fiber",
+    title: "WIFI ZONE Fiber Pro - Superfast Home & Office Internet",
+    description: "Are you tired of data bundles? Upgrade to a dedicated WIFI ZONE Fiber line for your residence or business starting at just 150,000 UGX/month. Unlimited downloads, 99.9% uptime!",
     imageUrl: "https://images.unsplash.com/photo-1600132806370-bf17e65e942f?auto=format&fit=crop&w=800&q=80",
     ctaText: "Order Home Fiber",
     tagline: "Unleash Gigaspeed Broadband",
-    themeColor: "from-teal-500 to-cyan-600",
+    themeColor: "from-orange-500 to-amber-600",
     impressions: 290,
     clicks: 102,
     active: true
   },
   {
     id: "ad-coop",
-    brand: "TBS Reseller",
+    brand: "WIFI ZONE Reseller",
     title: "Earn Extra Cash - Become a Hotspot Reseller Agent!",
     description: "Do you run a shop, salon, or retail stand near our hotspot zones? Apply to become a Reseller Agent, purchase wallet credit, sell high-speed vouchers, and earn up to 15% instant commission!",
     imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80",
     ctaText: "Apply as Reseller",
     tagline: "Grow Your Retail Business",
-    themeColor: "from-purple-500 to-indigo-600",
+    themeColor: "from-orange-400 to-amber-500",
     impressions: 184,
     clicks: 45,
     active: true
@@ -557,6 +587,7 @@ export class AppState {
   clientMAC: string;
   clientFingerprint: string;
   clientFreeTrialClaimed: boolean;
+  deviceCustomerSince: Record<string, string>;
 
   constructor() {
     this.packages = getStoredData('packages', INITIAL_PACKAGES);
@@ -574,9 +605,57 @@ export class AppState {
     this.clientMAC = getStoredData('client_mac', this.randomMAC());
     this.clientFingerprint = getStoredData('client_fingerprint', "fp_" + Math.random().toString(36).substring(2, 10));
     this.clientFreeTrialClaimed = getStoredData('client_free_trial_claimed', false);
+    this.deviceCustomerSince = getStoredData('device_customer_since', {});
 
     // Run monthly commission automation
     this.recalculateMonthlyCommissions();
+  }
+
+  getCustomerSince(mac: string): string {
+    if (!this.deviceCustomerSince) {
+      this.deviceCustomerSince = {};
+    }
+    const cleanMac = mac.toUpperCase();
+    if (this.deviceCustomerSince[cleanMac]) {
+      return this.deviceCustomerSince[cleanMac];
+    }
+
+    // Find the oldest bound voucher
+    const boundVouchers = this.vouchers.filter(v => v.boundMACs.map(m => m.toUpperCase()).includes(cleanMac));
+    if (boundVouchers.length > 0) {
+      let oldest = boundVouchers[0].createdTime;
+      boundVouchers.forEach(v => {
+        if (v.createdTime < oldest) oldest = v.createdTime;
+      });
+      this.deviceCustomerSince[cleanMac] = oldest;
+      this.save();
+      return oldest;
+    }
+
+    // Default for current client MAC: 95 days ago (~3 months) to qualify by default
+    if (cleanMac === this.clientMAC.toUpperCase()) {
+      const d = new Date();
+      d.setDate(d.getDate() - 95);
+      const iso = d.toISOString();
+      this.deviceCustomerSince[cleanMac] = iso;
+      this.save();
+      return iso;
+    }
+
+    // Otherwise standard fallback to now
+    const nowIso = new Date().toISOString();
+    this.deviceCustomerSince[cleanMac] = nowIso;
+    this.save();
+    return nowIso;
+  }
+
+  setCustomerSince(mac: string, dateIso: string) {
+    if (!this.deviceCustomerSince) {
+      this.deviceCustomerSince = {};
+    }
+    const cleanMac = mac.toUpperCase();
+    this.deviceCustomerSince[cleanMac] = dateIso;
+    this.save();
   }
 
   recalculateMonthlyCommissions() {
@@ -703,6 +782,7 @@ export class AppState {
     setStoredData('client_mac', this.clientMAC);
     setStoredData('client_fingerprint', this.clientFingerprint);
     setStoredData('client_free_trial_claimed', this.clientFreeTrialClaimed);
+    setStoredData('device_customer_since', this.deviceCustomerSince);
 
     // 2. Sync asynchronously to the server backend
     fetch('/api/state', {
@@ -719,7 +799,8 @@ export class AppState {
         transactions: this.transactions,
         logs: this.logs,
         adTrialClaims: this.adTrialClaims,
-        sponsorAds: this.sponsorAds
+        sponsorAds: this.sponsorAds,
+        deviceCustomerSince: this.deviceCustomerSince
       })
     }).catch(e => console.error("Failed to sync state to server backend:", e));
   }
@@ -737,6 +818,8 @@ export class AppState {
     localStorage.removeItem('tbs_client_mac');
     localStorage.removeItem('tbs_client_fingerprint');
     localStorage.removeItem('tbs_client_free_trial_claimed');
+    localStorage.removeItem('tbs_device_customer_since');
+    this.deviceCustomerSince = {};
     
     try {
       const response = await fetch('/api/state/reset', { method: 'POST' });

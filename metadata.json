@@ -1,5 +1,5 @@
 {
-  "name": "Techaus Connect Billing System",
+  "name": "WIFI ZONE",
   "description": "A comprehensive WISP captive portal, billing system, and role-based admin dashboard featuring voucher management, agent networks, and site monitoring.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

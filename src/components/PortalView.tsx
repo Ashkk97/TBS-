@@ -22,7 +22,11 @@ import {
   Download,
   Sparkles,
   TrendingUp,
-  GraduationCap
+  GraduationCap,
+  Play,
+  SkipForward,
+  Sliders,
+  Loader
 } from 'lucide-react';
 import { AppState, generateVoucherCode } from '../data';
 import { Package, Voucher, AdTrialClaim, SponsorAd } from '../types';
@@ -136,6 +140,30 @@ interface PortalViewProps {
   onGoToAdmin: () => void;
 }
 
+export function detectDeviceModel(): string {
+  if (typeof window === 'undefined' || !window.navigator || !window.navigator.userAgent) {
+    return "Unknown Phone/Device";
+  }
+  const ua = window.navigator.userAgent;
+  
+  if (/iphone/i.test(ua)) return "Apple iPhone";
+  if (/ipad/i.test(ua)) return "Apple iPad";
+  if (/macintosh|mac os x/i.test(ua)) return "Apple MacBook";
+  if (/samsung/i.test(ua)) return "Samsung Galaxy Phone";
+  if (/tecno/i.test(ua)) return "Tecno Spark/Camon";
+  if (/infinix/i.test(ua)) return "Infinix Hot/Note";
+  if (/itel/i.test(ua)) return "itel Mobile Phone";
+  if (/xiaomi|redmi|miui/i.test(ua)) return "Xiaomi Redmi Phone";
+  if (/oppo/i.test(ua)) return "Oppo Phone";
+  if (/vivo/i.test(ua)) return "Vivo Phone";
+  if (/huawei|honor/i.test(ua)) return "Huawei Phone";
+  if (/pixel/i.test(ua)) return "Google Pixel";
+  if (/android/i.test(ua)) return "Android Smartphone";
+  if (/windows/i.test(ua)) return "Windows Laptop/PC";
+  if (/linux/i.test(ua)) return "Linux Workstation";
+  return "Smartphone/Device";
+}
+
 export default function PortalView({ state, onStateUpdate, onGoToAdmin }: PortalViewProps) {
   // Client connection states
   const [activeSession, setActiveSession] = useState<any>(null);
@@ -143,6 +171,69 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   const [copiedMac, setCopiedMac] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Customer History & Eligibility for Simultaneous Ads
+  const customerSinceDateStr = state.getCustomerSince(state.clientMAC);
+  const customerSinceDate = new Date(customerSinceDateStr);
+  const daysCustomer = Math.max(0, Math.floor((Date.now() - customerSinceDate.getTime()) / (1000 * 60 * 60 * 24)));
+  const isEligibleForSimultaneous = daysCustomer >= 90;
+
+  const handleToggleCustomerSince = () => {
+    if (isEligibleForSimultaneous) {
+      // Toggle to 1 day ago (new customer)
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      state.setCustomerSince(state.clientMAC, d.toISOString());
+    } else {
+      // Toggle to 95 days ago (loyal customer of ~3 months)
+      const d = new Date();
+      d.setDate(d.getDate() - 95);
+      state.setCustomerSince(state.clientMAC, d.toISOString());
+    }
+    onStateUpdate();
+  };
+
+  // Automatic device recognition on connect (even without a coupon!)
+  const [detectedModel, setDetectedModel] = useState("Detecting...");
+  
+  useEffect(() => {
+    const model = detectDeviceModel();
+    setDetectedModel(model);
+
+    // Register pre-auth session immediately so Admin dashboard sees it
+    const existingSession = state.sessions.find(s => s.mac === state.clientMAC);
+    if (!existingSession) {
+      const preAuthSession = {
+        id: "sess-" + Date.now(),
+        mac: state.clientMAC,
+        voucherCode: "Pre-Auth (None)",
+        speed: "Blocked (Pre-Auth)",
+        startedAt: new Date().toISOString(),
+        durationMinutes: 0,
+        dataUsedMB: 0,
+        ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 50),
+        deviceModel: model,
+        status: "pre-auth" as const
+      };
+      state.sessions.push(preAuthSession);
+      state.save();
+      onStateUpdate();
+    } else {
+      let changed = false;
+      if (!existingSession.deviceModel) {
+        existingSession.deviceModel = model;
+        changed = true;
+      }
+      if (!existingSession.status) {
+        existingSession.status = existingSession.voucherCode && existingSession.voucherCode !== "Pre-Auth (None)" ? "authorized" : "pre-auth";
+        changed = true;
+      }
+      if (changed) {
+        state.save();
+        onStateUpdate();
+      }
+    }
+  }, [state.clientMAC]);
   
   // Modals / Sections
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
@@ -180,27 +271,78 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   const [adFinished, setAdFinished] = useState(false);
   const [completedAdsCount, setCompletedAdsCount] = useState(0);
 
+  // New Simultaneous & Auto-Play / Transition states
+  const [adPlayMode, setAdPlayMode] = useState<'simultaneous' | 'sequential'>('simultaneous');
+  const [activeAdsSimultaneous, setActiveAdsSimultaneous] = useState<SponsorAd[]>([]);
+  const [simultaneousCountdown, setSimultaneousCountdown] = useState(15);
+  const [simultaneousFinished, setSimultaneousFinished] = useState(false);
+  const [autoPlayLoadingSeconds, setAutoPlayLoadingSeconds] = useState<number | null>(null);
+
   // Package display filter: 'all' | 'budget' | 'weekly-monthly' | 'multidevice'
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'budget' | 'weekly-monthly' | 'multidevice'>('all');
   
   // Dynamic Package Need advisor state
   const [selectedAdvisorNeed, setSelectedAdvisorNeed] = useState<string | null>(null);
 
-  // Ad modal countdown effect
+  // Ad modal countdown effect (Sequential and Simultaneous)
   useEffect(() => {
-    if (!showAdModal || adCountdown <= 0) {
-      if (showAdModal && adCountdown === 0) {
+    if (!showAdModal) return;
+
+    if (adPlayMode === 'simultaneous') {
+      if (simultaneousCountdown <= 0) {
+        setSimultaneousFinished(true);
+        return;
+      }
+      const timer = setTimeout(() => {
+        setSimultaneousCountdown(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      // Sequential Mode
+      if (adCountdown > 0) {
+        const timer = setTimeout(() => {
+          setAdCountdown(prev => prev - 1);
+        }, 1000);
+        return () => clearTimeout(timer);
+      } else {
         setAdFinished(true);
       }
+    }
+  }, [showAdModal, adPlayMode, adCountdown, simultaneousCountdown]);
+
+  // Sequential Auto-Play Transition Effect (3 seconds loading time)
+  useEffect(() => {
+    if (!showAdModal || adPlayMode !== 'sequential') {
+      setAutoPlayLoadingSeconds(null);
       return;
     }
 
-    const timer = setTimeout(() => {
-      setAdCountdown(prev => prev - 1);
-    }, 1000);
+    // Only run if the current ad is finished (adCountdown === 0)
+    if (adCountdown === 0) {
+      if (autoPlayLoadingSeconds === null) {
+        setAutoPlayLoadingSeconds(3);
+        return;
+      }
 
-    return () => clearTimeout(timer);
-  }, [showAdModal, adCountdown]);
+      if (autoPlayLoadingSeconds > 0) {
+        const timer = setTimeout(() => {
+          setAutoPlayLoadingSeconds(prev => (prev !== null ? prev - 1 : null));
+        }, 1000);
+        return () => clearTimeout(timer);
+      } else if (autoPlayLoadingSeconds === 0) {
+        // Transition finished!
+        setAutoPlayLoadingSeconds(null);
+        if (completedAdsCount < 2) {
+          handleNextAd();
+        } else {
+          // Auto-claim on the last ad completion
+          handleFinishAdAndClaim();
+        }
+      }
+    } else {
+      setAutoPlayLoadingSeconds(null);
+    }
+  }, [showAdModal, adPlayMode, adCountdown, autoPlayLoadingSeconds, completedAdsCount]);
 
   // Get ad trial claims for the current device MAC within the last 30 days
   const getClaimsInLast30Days = () => {
@@ -377,13 +519,15 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       startedAt: actTime || new Date().toISOString(),
       durationMinutes: pkg.durationHours * 60,
       dataUsedMB: 0,
-      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
+      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10),
+      deviceModel: detectedModel,
+      status: 'authorized' as const
     };
 
     state.sessions.push(newSession);
     state.addLog('System', 'Client Portal', 'Voucher Connected', `Device ${state.clientMAC} connected successfully using voucher ${code} (${pkg.name})`);
     
-    setSuccessMessage(`Success! Connected to TBS Connect high-speed internet via ${pkg.name}.`);
+    setSuccessMessage(`Success! Connected to WIFI ZONE high-speed internet via ${pkg.name}.`);
     setErrorMessage(null);
     setVoucherCodeInput('');
     
@@ -420,29 +564,52 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       return;
     }
 
-    // Start with 0 completed ads
+    // Select up to 3 distinct active ads for simultaneous play
+    const shuffled = [...activeAds].sort(() => 0.5 - Math.random());
+    const selectedSimultaneous = shuffled.slice(0, Math.min(3, shuffled.length));
+    setActiveAdsSimultaneous(selectedSimultaneous);
+    
+    // Track impressions for all selected simultaneous ads
+    selectedSimultaneous.forEach(ad => {
+      const adIndex = state.sponsorAds.findIndex(a => a.id === ad.id);
+      if (adIndex !== -1) {
+        state.sponsorAds[adIndex].impressions = (state.sponsorAds[adIndex].impressions || 0) + 1;
+      }
+    });
+
+    // Start with 0 completed ads for sequential mode
     setCompletedAdsCount(0);
 
-    // Pick random sponsor ad
-    const randomAd = activeAds[Math.floor(Math.random() * activeAds.length)];
-    
-    // Increment impressions in state
-    const adIndex = state.sponsorAds.findIndex(a => a.id === randomAd.id);
-    if (adIndex !== -1) {
-      state.sponsorAds[adIndex].impressions = (state.sponsorAds[adIndex].impressions || 0) + 1;
-      state.save();
-      onStateUpdate();
-    }
+    // Pick first sequential ad
+    const firstAd = activeAds[Math.floor(Math.random() * activeAds.length)];
+    setActiveAd(firstAd);
 
-    setActiveAd(randomAd);
+    // Reset countdowns for both modes
     setAdCountdown(15);
     setAdFinished(false);
+    setSimultaneousCountdown(15);
+    setSimultaneousFinished(false);
+    setAutoPlayLoadingSeconds(null);
+    
+    // Set default mode to simultaneous as requested if 3-months customer history exists!
+    if (isEligibleForSimultaneous) {
+      setAdPlayMode('simultaneous');
+    } else {
+      setAdPlayMode('sequential');
+    }
+
     setShowAdModal(true);
     setErrorMessage(null);
+
+    state.save();
+    onStateUpdate();
   };
 
-  const handleNextAd = () => {
-    if (!adFinished || !activeAd) return;
+  const handleNextAd = (forceSkip = false) => {
+    if (!forceSkip && (!adFinished || !activeAd)) return;
+
+    // Reset sequential auto-play transition loader
+    setAutoPlayLoadingSeconds(null);
     
     const nextCompleted = completedAdsCount + 1;
     setCompletedAdsCount(nextCompleted);
@@ -469,8 +636,11 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     setAdFinished(false);
   };
 
-  const handleFinishAdAndClaim = () => {
-    if (!adFinished || !activeAd || completedAdsCount < 2) return;
+  const handleFinishAdAndClaim = (forceSkip = false) => {
+    const isSequentialFinished = adFinished && completedAdsCount >= 2;
+    const isSimultaneousFinished = simultaneousFinished;
+
+    if (!forceSkip && !isSequentialFinished && !isSimultaneousFinished) return;
 
     // Create temp free trial voucher
     const trialCode = "FREE-TRIAL-TEMP";
@@ -484,7 +654,9 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       startedAt: new Date().toISOString(),
       durationMinutes: 20,
       dataUsedMB: 0,
-      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10)
+      ipAddress: "10.5.50." + Math.floor(Math.random() * 200 + 10),
+      deviceModel: detectedModel,
+      status: 'authorized' as const
     };
 
     // Filter out previous session for this device
@@ -505,11 +677,16 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     }
     state.adTrialClaims.push(newClaim);
 
+    // Get brand name for success message
+    const sponsorBrandName = adPlayMode === 'simultaneous' 
+      ? (activeAdsSimultaneous[0]?.brand || "Sponsors") 
+      : (activeAd?.brand || "Sponsors");
+
     // Add audit log
-    state.addLog('System', 'Client Portal', 'Ad Free Trial Claimed', `Device ${state.clientMAC} watched 3 sponsor ads (last sponsor: ${activeAd.brand}) and started 20 min free trial.`);
+    state.addLog('System', 'Client Portal', 'Ad Free Trial Claimed', `Device ${state.clientMAC} watched sponsor ads simultaneously/automatically (brand: ${sponsorBrandName}) and started 20 min free trial.`);
     
     // Display success
-    setSuccessMessage(`Enjoy your 20 minutes of free trial internet sponsored by our brand partners including ${activeAd.brand}!`);
+    setSuccessMessage(`Enjoy your 20 minutes of free trial internet sponsored by our brand partners including ${sponsorBrandName}!`);
     setErrorMessage(null);
 
     // Save and update
@@ -794,7 +971,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
   const faqs = [
     {
       q: "Where can I buy physical vouchers?",
-      a: "You can buy physical scratch cards from any authorized TBS Connect retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, and Arua. Look for our navy and teal banners!"
+      a: "You can buy physical scratch cards from any authorized WIFI ZONE retail agent in Bukedea, Kumi, Mbale, Lira, Gulu, and Arua. Look for our vibrant orange banners!"
     },
     {
       q: "How does the device binding work?",
@@ -802,11 +979,11 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
     },
     {
       q: "Can I use the internet on my Smart TV or PlayStation?",
-      a: "Yes! Connect your Smart TV/console to the TBS Connect Wi-Fi network, copy its MAC address from its network settings, and register it here using the 'Smart TV Registration' form below."
+      a: "Yes! Connect your Smart TV/console to the WIFI ZONE network, copy its MAC address from its network settings, and register it here using the 'Smart TV Registration' form below."
     },
     {
       q: "How can I check my remaining session time?",
-      a: "As long as you are connected to TBS Connect Wi-Fi, visiting this portal will automatically display your session status, remaining time, and data usage statistics."
+      a: "As long as you are connected to WIFI ZONE, visiting this portal will automatically display your session status, remaining time, and data usage statistics."
     }
   ];
 
@@ -894,7 +1071,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
               <h3 className="text-lg font-bold text-white mb-2">Your Free Trial Has Ended!</h3>
               <p className="text-slate-300 text-sm mb-4">
-                Thank you for trying TBS Connect. To keep browsing without interruption, please purchase one of our affordable high-speed packages below.
+                Thank you for trying WIFI ZONE. To keep browsing without interruption, please purchase one of our affordable high-speed packages below.
               </p>
               <button 
                 onClick={() => setTrialEndedAlert(false)}
@@ -910,156 +1087,316 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md overflow-y-auto animate-fadeIn"
             >
               <motion.div
                 initial={{ scale: 0.95, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.95, y: 20 }}
-                className="w-full max-w-lg bg-slate-900 border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl relative"
+                className="w-full max-w-2xl bg-slate-900 border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl relative my-8"
               >
                 {/* Header with Close warning */}
-                <div className="absolute top-4 right-4 z-10">
+                <div className="p-5 border-b border-navy-800 flex items-center justify-between bg-slate-900/50">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-yellow-400" />
+                    <div>
+                      <h3 className="text-base font-bold text-white font-display">Sponsor-Supported Free Internet</h3>
+                      <p className="text-[10px] text-slate-400">Claim 20 minutes of high-speed browsing</p>
+                    </div>
+                  </div>
                   <button 
                     onClick={() => {
                       if (window.confirm("Are you sure you want to exit? You will lose progress and won't claim your 20 minutes of free internet.")) {
                         setShowAdModal(false);
                       }
                     }}
-                    className="p-1.5 rounded-full bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-950 transition"
+                    className="p-1.5 rounded-full bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-950 transition border border-navy-800"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
 
-                {/* Video/Image container simulating the advertisement player */}
-                <div className="relative aspect-video w-full bg-slate-950 overflow-hidden group">
-                  <img 
-                    src={activeAd.imageUrl} 
-                    alt={activeAd.title}
-                    className="w-full h-full object-cover select-none pointer-events-none transition duration-500 scale-102 group-hover:scale-105"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
-                  
-                  {/* Countdown overlay */}
-                  <div className="absolute top-4 left-4 py-1.5 px-3 bg-slate-950/80 rounded-full border border-slate-700/50 backdrop-blur-sm text-xs font-mono font-bold text-white flex items-center gap-2">
-                    {adFinished ? (
-                      <span className="text-teal-400 flex items-center gap-1">
-                        <Check className="h-3 w-3" /> Ad {completedAdsCount + 1}/3 Completed
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-                        Ad {completedAdsCount + 1}/3: {adCountdown}s remaining
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Brand Tag */}
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-yellow-400 text-slate-950 rounded-md tracking-wider">
-                      SPONSORED BY {activeAd.brand.toUpperCase()}
-                    </span>
-                    <h4 className="text-lg font-bold text-white font-display mt-1 drop-shadow">
-                      {activeAd.title}
-                    </h4>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="h-1.5 w-full bg-slate-950">
-                  <motion.div 
-                    initial={{ width: "0%" }}
-                    animate={{ width: adFinished ? "100%" : `${((15 - adCountdown) / 15) * 100}%` }}
-                    transition={{ duration: 1, ease: "linear" }}
-                    className="h-full bg-gradient-to-r from-teal-500 to-cyan-500"
-                  />
-                </div>
-
-                {/* Ad Copy & Brand CTA */}
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center justify-between gap-3 bg-slate-950/40 p-3 rounded-xl border border-navy-800">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center font-bold text-teal-400 text-sm">
-                        {activeAd.brand.charAt(0)}
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-white text-sm">{activeAd.brand}</h5>
-                        <p className="text-[10px] text-slate-400 font-medium font-mono">{activeAd.tagline}</p>
-                      </div>
-                    </div>
-                    {/* Ads completed progress dots */}
-                    <div className="flex items-center gap-1 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                      <span className="text-[9px] text-slate-400 font-mono font-bold mr-1">Ads:</span>
-                      {[1, 2, 3].map((step) => {
-                        const isCompleted = completedAdsCount >= step;
-                        const isCurrent = completedAdsCount + 1 === step;
-                        return (
-                          <div 
-                            key={step} 
-                            className={`h-1.5 w-3 rounded-full transition-colors duration-300 ${
-                              isCompleted 
-                                ? "bg-teal-400" 
-                                : isCurrent 
-                                  ? "bg-yellow-400 animate-pulse" 
-                                  : "bg-slate-700"
-                            }`} 
-                            title={`Ad ${step}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/30 p-3 rounded-xl border border-navy-800">
-                    {activeAd.description}
-                  </p>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <button 
+                {/* Ad Mode Selector Toggle */}
+                <div className="px-6 pt-4 pb-2 bg-slate-950/20">
+                  <div className="flex bg-slate-950 p-1 rounded-2xl border border-navy-800 text-xs">
+                    <button
                       onClick={() => {
-                        const adIndex = state.sponsorAds.findIndex(a => a.id === activeAd.id);
-                        if (adIndex !== -1) {
-                          state.sponsorAds[adIndex].clicks = (state.sponsorAds[adIndex].clicks || 0) + 1;
-                          state.save();
-                          onStateUpdate();
+                        if (isEligibleForSimultaneous) {
+                          setAdPlayMode('simultaneous');
+                        } else {
+                          alert(`🔒 Simultaneous play requires at least 3 months (~90 days) customer history on this MAC address.\n\nYour current history: ${daysCustomer} days.\n\nYou can use the "Simulate Device History" toggle on the connection box to change this and test this mode!`);
                         }
-                        alert(`Simulating ad click-through to sponsor website! This triggers conversion credit for ${activeAd.brand}.`);
                       }}
-                      className="flex-1 text-center py-2.5 bg-slate-850 hover:bg-slate-750 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
+                      className={`flex-1 py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
+                        adPlayMode === 'simultaneous'
+                          ? "bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-300 border border-teal-500/30"
+                          : !isEligibleForSimultaneous
+                            ? "text-slate-600 cursor-not-allowed hover:text-slate-500"
+                            : "text-slate-400 hover:text-slate-200"
+                      }`}
                     >
-                      {activeAd.ctaText}
+                      <Zap className="h-3.5 w-3.5" />
+                      ⚡ Play Simultaneously {!isEligibleForSimultaneous && "🔒"}
                     </button>
-
-                    {adFinished ? (
-                      completedAdsCount < 2 ? (
-                        <button
-                          onClick={handleNextAd}
-                          className="flex-1 py-2.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-yellow-500/20 flex items-center justify-center gap-1.5"
-                        >
-                          Next Sponsor Ad (Ad {completedAdsCount + 2} of 3)
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleFinishAdAndClaim}
-                          className="flex-1 py-2.5 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-1.5"
-                        >
-                          Claim 20 Min Internet
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      )
-                    ) : (
-                      <button
-                        disabled
-                        className="flex-1 py-2.5 bg-slate-800 text-slate-500 cursor-not-allowed font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
-                      >
-                        Wait {adCountdown}s to continue
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setAdPlayMode('sequential')}
+                      className={`flex-1 py-2 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
+                        adPlayMode === 'sequential'
+                          ? "bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-300 border border-yellow-500/30"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      🔄 Play Sequentially (Auto 3s Buffer)
+                    </button>
                   </div>
+                  {!isEligibleForSimultaneous && (
+                    <p className="text-[10px] text-center text-yellow-500/80 font-mono mt-1.5 px-4">
+                      🔒 Simultaneous mode locked. Only available for MAC addresses registered for ≥ 90 days (Current: {daysCustomer} days).
+                    </p>
+                  )}
                 </div>
+
+                {/* SINGLE UNIFIED AD PLAYER (Displays One Ad at a Time) */}
+                {(() => {
+                  // In simultaneous mode, select active ad index based on elapsed 15s timer
+                  const currentSimultaneousIndex = adPlayMode === 'simultaneous'
+                    ? Math.min(2, Math.floor((15 - simultaneousCountdown) / 5))
+                    : completedAdsCount;
+
+                  const displayedAd = adPlayMode === 'simultaneous'
+                    ? (activeAdsSimultaneous[currentSimultaneousIndex] || activeAd)
+                    : activeAd;
+
+                  if (!displayedAd) return null;
+
+                  // Determine timer displays
+                  const isCurrentAdFinished = adPlayMode === 'simultaneous'
+                    ? simultaneousFinished
+                    : adFinished;
+
+                  const remainingTime = adPlayMode === 'simultaneous'
+                    ? simultaneousCountdown
+                    : adCountdown;
+
+                  return (
+                    <div className="p-6 space-y-5">
+                      {/* Ad player info / status bar */}
+                      <div className="p-3 bg-slate-950/80 rounded-2xl border border-teal-500/10 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${isCurrentAdFinished ? 'bg-emerald-400' : 'bg-teal-400 animate-pulse'}`} />
+                          <span className="font-bold text-slate-300 font-mono uppercase tracking-wider">
+                            {adPlayMode === 'simultaneous' ? "⚡ Simultaneous Turbo Play (15s Total)" : "🔄 Sequential Play (45s Total)"}
+                          </span>
+                        </div>
+                        <div className="font-mono text-slate-400">
+                          {adPlayMode === 'simultaneous' ? (
+                            <span>Total Timer: <span className="text-teal-400 font-bold">{remainingTime}s</span></span>
+                          ) : (
+                            <span>Ad Countdown: <span className="text-yellow-400 font-bold">{remainingTime}s</span></span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Main Single Ad Player container */}
+                      <div className="relative aspect-video w-full bg-slate-950 overflow-hidden rounded-2xl border border-navy-800 group">
+                        {/* Show loading overlay if transitioning (Sequential mode transition buffer) */}
+                        {adPlayMode === 'sequential' && autoPlayLoadingSeconds !== null && (
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-sm p-4 text-center">
+                            <Loader className="h-8 w-8 text-yellow-400 animate-spin mb-3" />
+                            <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
+                              Optimizing Hotspot Connection
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                              {completedAdsCount < 2 
+                                ? `Buffering next sponsor campaign... Auto-playing in ${autoPlayLoadingSeconds}s`
+                                : `All campaigns completed successfully! Starting internet session in ${autoPlayLoadingSeconds}s`}
+                            </p>
+                            
+                            {/* Immediate skip transition button */}
+                            <button
+                              onClick={() => {
+                                setAutoPlayLoadingSeconds(null);
+                                if (completedAdsCount < 2) {
+                                  handleNextAd(true);
+                                } else {
+                                  handleFinishAdAndClaim(true);
+                                }
+                              }}
+                              className="mt-5 px-3.5 py-1.5 bg-yellow-500/10 text-yellow-400 rounded-lg text-[10px] font-bold border border-yellow-500/30 flex items-center gap-1 hover:bg-yellow-500/20 transition"
+                            >
+                              <SkipForward className="h-3.5 w-3.5" />
+                              Skip Buffer (Customer Action)
+                            </button>
+                          </div>
+                        )}
+
+                        <img 
+                          src={displayedAd.imageUrl} 
+                          alt={displayedAd.title}
+                          className="w-full h-full object-cover select-none pointer-events-none transition duration-500 scale-102 group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                        
+                        {/* Countdown overlay */}
+                        <div className="absolute top-4 left-4 py-1.5 px-3 bg-slate-950/80 rounded-full border border-slate-700/50 backdrop-blur-sm text-xs font-mono font-bold text-white flex items-center gap-2">
+                          {isCurrentAdFinished ? (
+                            <span className="text-teal-400 flex items-center gap-1">
+                              <Check className="h-3 w-3" /> All Sponsors Completed
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-yellow-500 animate-ping" />
+                              Campaign {currentSimultaneousIndex + 1}/3: {remainingTime}s remaining
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Brand Tag */}
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-yellow-400 text-slate-950 rounded-md tracking-wider">
+                            SPONSORED BY {displayedAd.brand.toUpperCase()}
+                          </span>
+                          <h4 className="text-lg font-bold text-white font-display mt-1 drop-shadow">
+                            {displayedAd.title}
+                          </h4>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <motion.div 
+                          key={adPlayMode}
+                          initial={{ width: "0%" }}
+                          animate={{ width: isCurrentAdFinished ? "100%" : `${((15 - remainingTime) / 15) * 100}%` }}
+                          transition={{ duration: 1, ease: "linear" }}
+                          className="h-full bg-gradient-to-r from-yellow-400 to-teal-400"
+                        />
+                      </div>
+
+                      {/* Ad Copy & Brand CTA */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3 bg-slate-950/40 p-3 rounded-xl border border-navy-800">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center font-bold text-yellow-400 text-sm">
+                              {displayedAd.brand.charAt(0)}
+                            </div>
+                            <div>
+                              <h5 className="font-bold text-white text-sm">{displayedAd.brand}</h5>
+                              <p className="text-[10px] text-slate-400 font-medium font-mono">{displayedAd.tagline}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Ads completed progress dots */}
+                          <div className="flex items-center gap-1 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                            <span className="text-[9px] text-slate-400 font-mono font-bold mr-1">Campaigns:</span>
+                            {[1, 2, 3].map((step) => {
+                              const stepIdx = step - 1;
+                              const isCompleted = adPlayMode === 'simultaneous'
+                                ? (currentSimultaneousIndex > stepIdx || simultaneousFinished)
+                                : (completedAdsCount > stepIdx || (completedAdsCount === stepIdx && adFinished));
+                              const isCurrent = currentSimultaneousIndex === stepIdx && !isCurrentAdFinished;
+                              return (
+                                <div 
+                                  key={step} 
+                                  className={`h-1.5 w-3 rounded-full transition-colors duration-300 ${
+                                    isCompleted 
+                                      ? "bg-teal-400" 
+                                      : isCurrent 
+                                        ? "bg-yellow-400 animate-pulse" 
+                                        : "bg-slate-700"
+                                  }`} 
+                                  title={`Ad ${step}`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/30 p-3 rounded-xl border border-navy-800 min-h-[50px]">
+                          {displayedAd.description}
+                        </p>
+
+                        <div className="flex items-center gap-3 pt-2">
+                          <button 
+                            onClick={() => {
+                              const adIndex = state.sponsorAds.findIndex(a => a.id === displayedAd.id);
+                              if (adIndex !== -1) {
+                                state.sponsorAds[adIndex].clicks = (state.sponsorAds[adIndex].clicks || 0) + 1;
+                                state.save();
+                                onStateUpdate();
+                              }
+                              alert(`Simulating ad click-through to sponsor website! This triggers conversion credit for ${displayedAd.brand}.`);
+                            }}
+                            className="flex-1 text-center py-2.5 bg-slate-850 hover:bg-slate-750 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
+                          >
+                            {displayedAd.ctaText}
+                          </button>
+
+                          {/* Customer direct skip button - always enabled for Customers */}
+                          <button
+                            onClick={() => {
+                              if (adPlayMode === 'simultaneous') {
+                                setSimultaneousCountdown(0);
+                                setSimultaneousFinished(true);
+                                handleFinishAdAndClaim(true);
+                              } else {
+                                if (completedAdsCount < 2) {
+                                  handleNextAd(true);
+                                } else {
+                                  handleFinishAdAndClaim(true);
+                                }
+                              }
+                            }}
+                            className="flex-1 py-2.5 bg-slate-850 hover:bg-slate-750 text-slate-300 hover:text-white font-extrabold rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-1.5"
+                            title="Bypasses the current countdown timer (Customer perk)"
+                          >
+                            <SkipForward className="h-3.5 w-3.5 text-yellow-400 animate-pulse" />
+                            Skip Ad (Customer Skip)
+                          </button>
+
+                          {isCurrentAdFinished ? (
+                            adPlayMode === 'simultaneous' ? (
+                              <button
+                                onClick={() => handleFinishAdAndClaim(true)}
+                                className="flex-1 py-2.5 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-1.5"
+                              >
+                                Claim 20 Min Internet
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+                            ) : (
+                              completedAdsCount < 2 ? (
+                                <button
+                                  onClick={() => handleNextAd(false)}
+                                  className="flex-1 py-2.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-yellow-500/20 flex items-center justify-center gap-1.5"
+                                >
+                                  Next Sponsor Ad (Ad {completedAdsCount + 2} of 3)
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleFinishAdAndClaim(false)}
+                                  className="flex-1 py-2.5 bg-gradient-to-r from-teal-400 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs transition shadow-lg shadow-teal-500/20 flex items-center justify-center gap-1.5"
+                                >
+                                  Claim 20 Min Internet
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+                              )
+                            )
+                          ) : (
+                            <button
+                              disabled
+                              className="flex-1 py-2.5 bg-slate-800 text-slate-500 cursor-not-allowed font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-navy-800"
+                            >
+                              Wait {remainingTime}s to continue
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </motion.div>
             </motion.div>
           )}
@@ -1148,6 +1485,55 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
               <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-2xl -z-10" />
               
               <div>
+                {/* Immediate Device Recognition Indicator */}
+                <div className="mb-5 p-3.5 bg-slate-900/80 border border-emerald-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg shrink-0 border border-emerald-500/20">
+                      <Smartphone className="h-5 w-5 animate-pulse" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                          ● Device Connected
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">Automatic Pairing</span>
+                      </div>
+                      <p className="text-xs font-bold text-white font-sans">
+                        Recognized Device: <span className="text-teal-300">{detectedModel}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        Hardware MAC: <span className="text-slate-200">{state.clientMAC}</span>
+                      </p>
+                      
+                      {/* Customer History Status */}
+                      <div className="pt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-slate-300 font-mono">
+                          Tenure: <span className="font-bold text-yellow-400">{daysCustomer} days</span>
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                          isEligibleForSimultaneous 
+                            ? "bg-teal-500/10 text-teal-400 border border-teal-500/20" 
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          {isEligibleForSimultaneous ? "✓ 3M+ Loyal (Sim-Ads)" : "✗ New (<3M) Sequential"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-stretch sm:items-end gap-1.5 self-stretch sm:self-center">
+                    <span className="text-center text-[10px] bg-emerald-950 text-emerald-400 font-mono font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                      Pre-Auth Active
+                    </span>
+                    <button
+                      onClick={handleToggleCustomerSince}
+                      className="px-2 py-1 text-[9px] font-bold bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white rounded border border-slate-700 transition flex items-center justify-center gap-1"
+                      title="Simulate different duration of customer tenure for testing ad modes"
+                    >
+                      <span>🔄 Simulate {isEligibleForSimultaneous ? "New (<3M)" : "Loyal (3M+)"}</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 mb-3">
                   <span className="px-2.5 py-1 text-xs bg-teal-500/10 text-teal-300 rounded-full font-bold border border-teal-500/20">Step 1</span>
                   <h2 className="text-lg font-bold text-white font-display">Enter Your Voucher Code</h2>
@@ -1641,7 +2027,7 @@ export default function PortalView({ state, onStateUpdate, onGoToAdmin }: Portal
       <footer className="mt-auto bg-navy-900 border-t border-navy-700 py-6 text-xs text-slate-400">
         <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-center sm:text-left">
-            <p className="font-bold text-white mb-0.5">TBS Connect Uganda Ltd</p>
+            <p className="font-bold text-white mb-0.5">WIFI ZONE Uganda</p>
             <p className="text-[10px]">Serving Bukedea, Kumi, Mbale, Lira, Gulu, and Arua.</p>
           </div>
 
